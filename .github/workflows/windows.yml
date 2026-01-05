@@ -17,24 +17,35 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      # Prove which workflow + matrix we're running (helps avoid "edited wrong file" issues)
-      - name: DEBUG workflow/matrix
+      - name: DEBUG repo + submodules
         shell: bash
         run: |
-          echo "WORKFLOW: $GITHUB_WORKFLOW"
-          echo "REF:      $GITHUB_REF"
-          echo "SHA:      $GITHUB_SHA"
-          echo "platform=${{ matrix.platform }}"
-          echo "target=${{ matrix.target }}"
-          echo "arch=${{ matrix.arch }}"
+          set -euo pipefail
+          echo "=== Parent repo ==="
+          git rev-parse HEAD
+          git log -1 --oneline
+
+          echo ""
+          echo "=== Submodule status (recursive) ==="
+          git submodule status --recursive || true
+
+          echo ""
+          echo "=== godot-cpp HEAD ==="
+          if [ -d "godot-cpp/.git" ] || [ -f "godot-cpp/.git" ]; then
+            cd godot-cpp
+            git rev-parse HEAD || true
+            git log -1 --oneline || true
+          else
+            echo "godot-cpp does not look like a git repo (submodule not initialized?)"
+          fi
 
       - name: Setup Base Dependencies
         uses: ./.github/actions/base-deps
         with:
           platform: ${{ matrix.platform }}
 
-      # Ensure 32-bit MinGW exists when arch=x86_32 (cross-compiling Windows on Ubuntu)
       - name: Install MinGW (x86_32 toolchain)
         if: ${{ matrix.arch == 'x86_32' }}
         shell: bash
@@ -42,62 +53,106 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y mingw-w64
-          echo "Toolchain check:"
+          echo "Toolchain:"
           which i686-w64-mingw32-gcc || true
           i686-w64-mingw32-gcc --version || true
 
-      # Hotfix: some godot-cpp revisions use std::mutex without including <mutex>.
-      # We patch the header BEFORE running scons. This step prints BEFORE/AFTER so you can
-      # see in logs that it really applied.
-      - name: Force-include <mutex> in ALL class_db.hpp (x86_32)
+      - name: DEBUG find all class_db.hpp candidates
         if: ${{ matrix.arch == 'x86_32' }}
         shell: bash
         run: |
           set -euo pipefail
+          echo "Searching for class_db.hpp copies..."
+          find . -path "*/godot_cpp/core/class_db.hpp" -print || true
+
+          echo ""
+          echo "Searching for engine_singletons_mutex symbol..."
+          grep -R --line-number "engine_singletons_mutex" -n . | head -n 50 || true
+
+      - name: Patch ALL godot-cpp class_db.hpp to include <mutex> (x86_32)
+        if: ${{ matrix.arch == 'x86_32' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
           mapfile -t FILES < <(find . -path "*/godot_cpp/core/class_db.hpp" -print)
-      
-          echo "Found ${#FILES[@]} class_db.hpp files:"
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "ERROR: Could not find any godot_cpp/core/class_db.hpp in workspace."
+            exit 1
+          fi
+
+          echo "Found ${#FILES[@]} class_db.hpp file(s):"
           printf '%s\n' "${FILES[@]}"
-      
+
           for HDR in "${FILES[@]}"; do
+            echo ""
+            echo "=== BEFORE: $HDR (lines 35-80) ==="
+            nl -ba "$HDR" | sed -n '35,80p'
+
             if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
-              echo "Patching $HDR"
+              echo "Patching $HDR to add #include <mutex>"
+
+              # Insert after the first '#include <set>' if present, else after first include.
               if grep -qE '^\s*#\s*include\s*<set>' "$HDR"; then
                 perl -0777 -i -pe 's/(^\s*#\s*include\s*<set>.*\R)/$1#include <mutex>\n/m' "$HDR"
               else
                 perl -0777 -i -pe 's/(^\s*#\s*include\s*<[^>]+>.*\R)/$1#include <mutex>\n/m' "$HDR"
               fi
+            else
+              echo "<mutex> already present in $HDR"
             fi
-      
+
+            echo "=== AFTER: $HDR (lines 35-80) ==="
+            nl -ba "$HDR" | sed -n '35,80p'
+
+            echo "Verifying mutex include exists in $HDR..."
             grep -nE '^\s*#\s*include\s*<mutex>\s*$' "$HDR" >/dev/null
           done
 
+          echo ""
+          echo "All class_db.hpp files verified to contain #include <mutex>."
 
+      # Temporarily disable scons cache for x86_32 to rule out stale cached objects.
       - name: Setup Build Cache
         uses: ./.github/actions/build-cache
         with:
           cache-name: ${{ matrix.platform }}-${{ matrix.target }}-${{ matrix.arch }}
         continue-on-error: true
 
-      - name: Build Terrain3D
+      - name: Build Terrain3D (log commands)
         env:
+          # Disable cache for x86_32 debugging; keep for x86_64
           SCONS_CACHE: "${{ github.workspace }}/.scons-cache/"
           TARGET: template_${{ matrix.target }}
           ARCH: ${{ matrix.arch }}
         shell: bash
         run: |
           set -euo pipefail
-          scons target="$TARGET" platform="${{ matrix.platform }}" arch="$ARCH" debug_symbols=no -j2
+
+          # For x86_32, disable cache to eliminate "old header compiled" possibility.
+          EXTRA=""
+          if [ "${{ matrix.arch }}" = "x86_32" ]; then
+            EXTRA="--no-cache"
+          fi
+
+          echo "Running scons with EXTRA='$EXTRA'"
+          # --debug=explain and --debug=time can be noisy; keep to command printing only.
+          scons $EXTRA target="$TARGET" platform="${{ matrix.platform }}" arch="$ARCH" debug_symbols=no -j2 verbose=yes 2>&1 | tee scons.log
+
+          echo ""
+          echo "=== First 80 lines of scons.log ==="
+          sed -n '1,80p' scons.log
+
+          echo ""
+          echo "=== Lines mentioning class_db.hpp (if any) ==="
+          grep -n "class_db.hpp" -n scons.log || true
 
       - name: Prepare Files
         shell: bash
         run: |
           set -euo pipefail
           ls -l project/addons/terrain_3d/bin/ || true
-
-          # strip can fail for some binaries or when glob doesn't match; don't fail the job for that
           strip project/addons/terrain_3d/bin/libterrain.* 2>/dev/null || true
-
           ls -l project/addons/terrain_3d/bin/ || true
           cp "${{ github.workspace }}/README.md" "${{ github.workspace }}/LICENSE.txt" "${{ github.workspace }}/project/addons/terrain_3d/"
 
@@ -108,6 +163,7 @@ jobs:
           name: t3d-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}
           path: |
             ${{ github.workspace }}/project/
+            ${{ github.workspace }}/scons.log
 
   merge:
     runs-on: ubuntu-latest
