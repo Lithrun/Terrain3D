@@ -49,32 +49,29 @@ jobs:
       # Hotfix: some godot-cpp revisions use std::mutex without including <mutex>.
       # We patch the header BEFORE running scons. This step prints BEFORE/AFTER so you can
       # see in logs that it really applied.
-      - name: Patch godot-cpp header to include <mutex> (x86_32)
+      - name: Force-include <mutex> in ALL class_db.hpp (x86_32)
         if: ${{ matrix.arch == 'x86_32' }}
         shell: bash
         run: |
           set -euo pipefail
+          mapfile -t FILES < <(find . -path "*/godot_cpp/core/class_db.hpp" -print)
+      
+          echo "Found ${#FILES[@]} class_db.hpp files:"
+          printf '%s\n' "${FILES[@]}"
+      
+          for HDR in "${FILES[@]}"; do
+            if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
+              echo "Patching $HDR"
+              if grep -qE '^\s*#\s*include\s*<set>' "$HDR"; then
+                perl -0777 -i -pe 's/(^\s*#\s*include\s*<set>.*\R)/$1#include <mutex>\n/m' "$HDR"
+              else
+                perl -0777 -i -pe 's/(^\s*#\s*include\s*<[^>]+>.*\R)/$1#include <mutex>\n/m' "$HDR"
+              fi
+            fi
+      
+            grep -nE '^\s*#\s*include\s*<mutex>\s*$' "$HDR" >/dev/null
+          done
 
-          HDR="godot-cpp/include/godot_cpp/core/class_db.hpp"
-          echo "Patching: $HDR"
-          test -f "$HDR"
-
-          echo "---- BEFORE (lines 40-70) ----"
-          nl -ba "$HDR" | sed -n '40,70p'
-
-          # Insert <mutex> after the first include of <set>, tolerant to whitespace/comments.
-          if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
-            sed -i -E '0,/^\s*#\s*include\s*<set>\s*(\/\/.*)?$/s//&\n#include <mutex>/' "$HDR"
-          fi
-
-          # Fail early if we still don't see it (prevents wasting build time)
-          if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
-            echo "ERROR: Failed to insert #include <mutex> into $HDR"
-            exit 1
-          fi
-
-          echo "---- AFTER (lines 40-70) ----"
-          nl -ba "$HDR" | sed -n '40,70p'
 
       - name: Setup Build Cache
         uses: ./.github/actions/build-cache
