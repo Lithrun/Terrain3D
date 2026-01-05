@@ -28,11 +28,35 @@ jobs:
         if: ${{ matrix.arch == 'x86_32' }}
         shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y mingw-w64
-          # Optional: show toolchains for debugging
           which i686-w64-mingw32-gcc || true
           i686-w64-mingw32-gcc --version || true
+
+      # Hotfix for certain godot-cpp revisions missing <mutex> include
+      - name: Patch godot-cpp headers (<mutex>) for x86_32
+        if: ${{ matrix.arch == 'x86_32' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          HDR="godot-cpp/include/godot_cpp/core/class_db.hpp"
+
+          if [ ! -f "$HDR" ]; then
+            echo "ERROR: Header not found: $HDR"
+            exit 1
+          fi
+
+          if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
+            echo "Patching $HDR to include <mutex>..."
+            # Your error log shows <set> is present; insert <mutex> right after it.
+            sed -i 's|#include <set>|#include <set>\n#include <mutex>|' "$HDR"
+          else
+            echo "<mutex> already included; no patch needed."
+          fi
+
+          echo "Includes in $HDR:"
+          grep -nE '#\s*include\s*<(set|mutex)>' "$HDR" || true
 
       - name: Setup Build Cache
         uses: ./.github/actions/build-cache
@@ -56,7 +80,7 @@ jobs:
           set -euo pipefail
           ls -l project/addons/terrain_3d/bin/ || true
 
-          # strip may fail if glob doesn't match; don't fail the job for that
+          # strip may fail if glob doesn't match or strip can't parse; don't fail the job for that
           strip project/addons/terrain_3d/bin/libterrain.* 2>/dev/null || true
 
           ls -l project/addons/terrain_3d/bin/ || true
