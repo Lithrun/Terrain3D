@@ -18,12 +18,23 @@ jobs:
         with:
           submodules: recursive
 
+      # Prove which workflow + matrix we're running (helps avoid "edited wrong file" issues)
+      - name: DEBUG workflow/matrix
+        shell: bash
+        run: |
+          echo "WORKFLOW: $GITHUB_WORKFLOW"
+          echo "REF:      $GITHUB_REF"
+          echo "SHA:      $GITHUB_SHA"
+          echo "platform=${{ matrix.platform }}"
+          echo "target=${{ matrix.target }}"
+          echo "arch=${{ matrix.arch }}"
+
       - name: Setup Base Dependencies
         uses: ./.github/actions/base-deps
         with:
           platform: ${{ matrix.platform }}
 
-      # Ensure 32-bit MinGW exists when arch=x86_32
+      # Ensure 32-bit MinGW exists when arch=x86_32 (cross-compiling Windows on Ubuntu)
       - name: Install MinGW (x86_32 toolchain)
         if: ${{ matrix.arch == 'x86_32' }}
         shell: bash
@@ -31,40 +42,39 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install -y mingw-w64
+          echo "Toolchain check:"
           which i686-w64-mingw32-gcc || true
           i686-w64-mingw32-gcc --version || true
 
-      # Hotfix for certain godot-cpp revisions missing <mutex> include
-      - name: Patch godot-cpp headers (<mutex>) for x86_32
+      # Hotfix: some godot-cpp revisions use std::mutex without including <mutex>.
+      # We patch the header BEFORE running scons. This step prints BEFORE/AFTER so you can
+      # see in logs that it really applied.
+      - name: Patch godot-cpp header to include <mutex> (x86_32)
         if: ${{ matrix.arch == 'x86_32' }}
         shell: bash
         run: |
           set -euo pipefail
-      
+
           HDR="godot-cpp/include/godot_cpp/core/class_db.hpp"
-      
-          echo "Patching header: $HDR"
-          ls -la "$HDR"
-      
-          # Show the include area BEFORE
-          echo "---- BEFORE (includes) ----"
-          nl -ba "$HDR" | sed -n '35,70p'
-      
-          # If <mutex> isn't included, insert it right after the first include of <set>
+          echo "Patching: $HDR"
+          test -f "$HDR"
+
+          echo "---- BEFORE (lines 40-70) ----"
+          nl -ba "$HDR" | sed -n '40,70p'
+
+          # Insert <mutex> after the first include of <set>, tolerant to whitespace/comments.
           if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
-            # Insert after the first line that includes <set> (tolerate whitespace and comments)
             sed -i -E '0,/^\s*#\s*include\s*<set>\s*(\/\/.*)?$/s//&\n#include <mutex>/' "$HDR"
           fi
-      
-          # Fail the build early if it still isn't there
+
+          # Fail early if we still don't see it (prevents wasting build time)
           if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
             echo "ERROR: Failed to insert #include <mutex> into $HDR"
             exit 1
           fi
-      
-          # Show the include area AFTER
-          echo "---- AFTER (includes) ----"
-          nl -ba "$HDR" | sed -n '35,70p'
+
+          echo "---- AFTER (lines 40-70) ----"
+          nl -ba "$HDR" | sed -n '40,70p'
 
       - name: Setup Build Cache
         uses: ./.github/actions/build-cache
@@ -88,7 +98,7 @@ jobs:
           set -euo pipefail
           ls -l project/addons/terrain_3d/bin/ || true
 
-          # strip may fail if glob doesn't match or strip can't parse; don't fail the job for that
+          # strip can fail for some binaries or when glob doesn't match; don't fail the job for that
           strip project/addons/terrain_3d/bin/libterrain.* 2>/dev/null || true
 
           ls -l project/addons/terrain_3d/bin/ || true
