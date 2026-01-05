@@ -10,7 +10,7 @@ jobs:
       matrix:
         platform: [windows]
         target: [debug, release]
-        arch: [x86_64, x86_32]
+        arch: [x86_32]
 
     steps:
       - name: Checkout Terrain3D
