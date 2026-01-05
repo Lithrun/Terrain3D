@@ -40,23 +40,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+      
           HDR="godot-cpp/include/godot_cpp/core/class_db.hpp"
-
-          if [ ! -f "$HDR" ]; then
-            echo "ERROR: Header not found: $HDR"
+      
+          echo "Patching header: $HDR"
+          ls -la "$HDR"
+      
+          # Show the include area BEFORE
+          echo "---- BEFORE (includes) ----"
+          nl -ba "$HDR" | sed -n '35,70p'
+      
+          # If <mutex> isn't included, insert it right after the first include of <set>
+          if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
+            # Insert after the first line that includes <set> (tolerate whitespace and comments)
+            sed -i -E '0,/^\s*#\s*include\s*<set>\s*(\/\/.*)?$/s//&\n#include <mutex>/' "$HDR"
+          fi
+      
+          # Fail the build early if it still isn't there
+          if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
+            echo "ERROR: Failed to insert #include <mutex> into $HDR"
             exit 1
           fi
-
-          if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
-            echo "Patching $HDR to include <mutex>..."
-            # Your error log shows <set> is present; insert <mutex> right after it.
-            sed -i 's|#include <set>|#include <set>\n#include <mutex>|' "$HDR"
-          else
-            echo "<mutex> already included; no patch needed."
-          fi
-
-          echo "Includes in $HDR:"
-          grep -nE '#\s*include\s*<(set|mutex)>' "$HDR" || true
+      
+          # Show the include area AFTER
+          echo "---- AFTER (includes) ----"
+          nl -ba "$HDR" | sed -n '35,70p'
 
       - name: Setup Build Cache
         uses: ./.github/actions/build-cache
