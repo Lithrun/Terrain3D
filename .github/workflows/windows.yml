@@ -13,140 +13,116 @@ jobs:
         arch: [x86_32]
 
     steps:
-      - name: Checkout Terrain3D
+      - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
 
-      - name: DEBUG repo + submodules
+      - name: Force godot-cpp submodule revision
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== Parent repo ==="
-          git rev-parse HEAD
-          git log -1 --oneline
+          echo "=== godot-cpp before ==="
+          git -C godot-cpp rev-parse HEAD || true
 
-          echo ""
-          echo "=== Submodule status (recursive) ==="
-          git submodule status --recursive || true
+          # Make sure we can reach the commit even if the submodule was checked out shallow.
+          git -C godot-cpp fetch --prune --tags origin || true
+          git -C godot-cpp fetch origin b724219737883e311f4cc4da1b49a0960dd00d38 || true
 
-          echo ""
-          echo "=== godot-cpp HEAD ==="
-          if [ -d "godot-cpp/.git" ] || [ -f "godot-cpp/.git" ]; then
-            cd godot-cpp
-            git rev-parse HEAD || true
-            git log -1 --oneline || true
-          else
-            echo "godot-cpp does not look like a git repo (submodule not initialized?)"
-          fi
+          git -C godot-cpp checkout -f b724219737883e311f4cc4da1b49a0960dd00d38
 
-      - name: Setup Base Dependencies
-        uses: ./.github/actions/base-deps
-        with:
-          platform: ${{ matrix.platform }}
+          echo "=== godot-cpp after ==="
+          git -C godot-cpp rev-parse HEAD
 
-      - name: Install MinGW (x86_32 toolchain)
+      - name: Install build deps (SCons, etc.)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            python3 python3-pip \
+            pkg-config \
+            git \
+            scons
+
+      # Critical fix: use a MinGW i686 toolchain WITH thread support (POSIX/gthreads)
+      - name: Install MinGW (x86_32 toolchain, POSIX threads)
         if: ${{ matrix.arch == 'x86_32' }}
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y mingw-w64
-          echo "Toolchain:"
-          which i686-w64-mingw32-gcc || true
-          i686-w64-mingw32-gcc --version || true
 
-      - name: DEBUG find all class_db.hpp candidates
-        if: ${{ matrix.arch == 'x86_32' }}
+          sudo apt-get install -y \
+            mingw-w64 \
+            gcc-mingw-w64-i686-posix \
+            g++-mingw-w64-i686-posix
+
+          echo "=== Available i686 compilers ==="
+          ls -l /usr/bin/i686-w64-mingw32-g++* || true
+          ls -l /usr/bin/i686-w64-mingw32-gcc* || true
+
+          echo "=== Switch alternatives to POSIX variant (thread-enabled) ==="
+          sudo update-alternatives --set i686-w64-mingw32-gcc /usr/bin/i686-w64-mingw32-gcc-posix
+          sudo update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix
+
+          echo "=== Toolchain in use ==="
+          which i686-w64-mingw32-gcc
+          which i686-w64-mingw32-g++
+          i686-w64-mingw32-g++ -v
+
+          echo "=== Sanity check: std::mutex compiles ==="
+          cat > /tmp/mutex_test.cpp <<'CPP'
+          #include <mutex>
+          int main() { std::mutex m; (void)m; return 0; }
+          CPP
+          i686-w64-mingw32-g++ -std=c++17 /tmp/mutex_test.cpp -c -o /tmp/mutex_test.o
+          echo "OK: std::mutex works."
+
+      - name: Install MinGW (x86_64 toolchain)
+        if: ${{ matrix.arch == 'x86_64' }}
         shell: bash
         run: |
           set -euo pipefail
-          echo "Searching for class_db.hpp copies..."
-          find . -path "*/godot_cpp/core/class_db.hpp" -print || true
+          sudo apt-get update
+          sudo apt-get install -y \
+            mingw-w64 \
+            gcc-mingw-w64-x86-64 \
+            g++-mingw-w64-x86-64
 
-          echo ""
-          echo "Searching for engine_singletons_mutex symbol..."
-          grep -R --line-number "engine_singletons_mutex" -n . | head -n 50 || true
+          echo "=== Toolchain in use ==="
+          which x86_64-w64-mingw32-gcc
+          which x86_64-w64-mingw32-g++
+          x86_64-w64-mingw32-g++ -v
 
-      - name: Patch ALL godot-cpp class_db.hpp to include <mutex> (x86_32)
-        if: ${{ matrix.arch == 'x86_32' }}
+      - name: Build Terrain3D (verbose, keep log)
         shell: bash
-        run: |
-          set -euo pipefail
-
-          mapfile -t FILES < <(find . -path "*/godot_cpp/core/class_db.hpp" -print)
-          if [ "${#FILES[@]}" -eq 0 ]; then
-            echo "ERROR: Could not find any godot_cpp/core/class_db.hpp in workspace."
-            exit 1
-          fi
-
-          echo "Found ${#FILES[@]} class_db.hpp file(s):"
-          printf '%s\n' "${FILES[@]}"
-
-          for HDR in "${FILES[@]}"; do
-            echo ""
-            echo "=== BEFORE: $HDR (lines 35-80) ==="
-            nl -ba "$HDR" | sed -n '35,80p'
-
-            if ! grep -qE '^\s*#\s*include\s*<mutex>\s*$' "$HDR"; then
-              echo "Patching $HDR to add #include <mutex>"
-
-              # Insert after the first '#include <set>' if present, else after first include.
-              if grep -qE '^\s*#\s*include\s*<set>' "$HDR"; then
-                perl -0777 -i -pe 's/(^\s*#\s*include\s*<set>.*\R)/$1#include <mutex>\n/m' "$HDR"
-              else
-                perl -0777 -i -pe 's/(^\s*#\s*include\s*<[^>]+>.*\R)/$1#include <mutex>\n/m' "$HDR"
-              fi
-            else
-              echo "<mutex> already present in $HDR"
-            fi
-
-            echo "=== AFTER: $HDR (lines 35-80) ==="
-            nl -ba "$HDR" | sed -n '35,80p'
-
-            echo "Verifying mutex include exists in $HDR..."
-            grep -nE '^\s*#\s*include\s*<mutex>\s*$' "$HDR" >/dev/null
-          done
-
-          echo ""
-          echo "All class_db.hpp files verified to contain #include <mutex>."
-
-      # Temporarily disable scons cache for x86_32 to rule out stale cached objects.
-      - name: Setup Build Cache
-        uses: ./.github/actions/build-cache
-        with:
-          cache-name: ${{ matrix.platform }}-${{ matrix.target }}-${{ matrix.arch }}
-        continue-on-error: true
-
-      - name: Build Terrain3D (log commands)
         env:
-          # Disable cache for x86_32 debugging; keep for x86_64
-          SCONS_CACHE: "${{ github.workspace }}/.scons-cache/"
           TARGET: template_${{ matrix.target }}
           ARCH: ${{ matrix.arch }}
-        shell: bash
+          # Force SCons to use the right compiler (esp. important for i686 posix)
+          CC: ${{ matrix.arch == 'x86_32' && 'i686-w64-mingw32-gcc-posix' || 'x86_64-w64-mingw32-gcc' }}
+          CXX: ${{ matrix.arch == 'x86_32' && 'i686-w64-mingw32-g++-posix' || 'x86_64-w64-mingw32-g++' }}
         run: |
           set -euo pipefail
 
-          # For x86_32, disable cache to eliminate "old header compiled" possibility.
-          EXTRA=""
-          if [ "${{ matrix.arch }}" = "x86_32" ]; then
-            EXTRA="--no-cache"
-          fi
+          echo "=== Build vars ==="
+          echo "TARGET=$TARGET"
+          echo "ARCH=$ARCH"
+          echo "CC=$CC"
+          echo "CXX=$CXX"
 
-          echo "Running scons with EXTRA='$EXTRA'"
-          # --debug=explain and --debug=time can be noisy; keep to command printing only.
-          scons $EXTRA target="$TARGET" platform="${{ matrix.platform }}" arch="$ARCH" debug_symbols=no -j2 verbose=yes 2>&1 | tee scons.log
+          # If you want to hard-disable SCons cache usage, you can also set:
+          # export SCONS_CACHE=0
+          # But leaving it enabled is fine; your error isn't cache-related.
 
-          echo ""
-          echo "=== First 80 lines of scons.log ==="
-          sed -n '1,80p' scons.log
-
-          echo ""
-          echo "=== Lines mentioning class_db.hpp (if any) ==="
-          grep -n "class_db.hpp" -n scons.log || true
-
+          scons \
+            platform=windows \
+            arch="$ARCH" \
+            target="$TARGET" \
+            verbose=yes \
+            -j2 2>&1 | tee "scons-${ARCH}-${TARGET}.log"
       - name: Prepare Files
         shell: bash
         run: |
