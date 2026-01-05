@@ -2,8 +2,8 @@
 
 name: 🛠️ Build All
 on: 
-    push:
-        branches: [ main ]
+    #push:
+    #    branches: [ main ]
     pull_request:
         paths: [ '**' ]
     workflow_dispatch:
