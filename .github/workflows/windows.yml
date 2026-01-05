@@ -1,4 +1,4 @@
-﻿name: 🪟 Windows Builds
+name: 🪟 Windows Builds
 on: [ workflow_call, workflow_dispatch ]
 
 jobs:
@@ -10,7 +10,7 @@ jobs:
       matrix:
         platform: [windows]
         target: [debug, release]
-        arch: [x86_64]
+        arch: [x86_64, x86_32]
 
     steps:
       - name: Checkout Terrain3D
@@ -21,30 +21,46 @@ jobs:
       - name: Setup Base Dependencies
         uses: ./.github/actions/base-deps
         with:
-            platform: ${{ matrix.platform }}
+          platform: ${{ matrix.platform }}
+
+      # Ensure 32-bit MinGW exists when arch=x86_32
+      - name: Install MinGW (x86_32 toolchain)
+        if: ${{ matrix.arch == 'x86_32' }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mingw-w64
+          # Optional: show toolchains for debugging
+          which i686-w64-mingw32-gcc || true
+          i686-w64-mingw32-gcc --version || true
 
       - name: Setup Build Cache
         uses: ./.github/actions/build-cache
         with:
-          cache-name: ${{ matrix.platform }}-${{ matrix.target }}
+          cache-name: ${{ matrix.platform }}-${{ matrix.target }}-${{ matrix.arch }}
         continue-on-error: true
 
       - name: Build Terrain3D
         env:
-            SCONS_CACHE: "${{ github.workspace }}/.scons-cache/"
-            TARGET: 'template_${{ matrix.target }}'
-            ARCH: '${{ matrix.arch }}'
-        shell: sh
+          SCONS_CACHE: "${{ github.workspace }}/.scons-cache/"
+          TARGET: template_${{ matrix.target }}
+          ARCH: ${{ matrix.arch }}
+        shell: bash
         run: |
-            scons target=$TARGET platform='${{ matrix.platform }}' arch=$ARCH debug_symbols=no -j2
+          set -euo pipefail
+          scons target="$TARGET" platform="${{ matrix.platform }}" arch="$ARCH" debug_symbols=no -j2
 
       - name: Prepare Files
-        shell: sh
+        shell: bash
         run: |
-          ls -l project/addons/terrain_3d/bin/
-          strip project/addons/terrain_3d/bin/libterrain.*
-          ls -l project/addons/terrain_3d/bin/
-          cp '${{ github.workspace }}/README.md' '${{ github.workspace }}/LICENSE.txt' ${{ github.workspace }}/project/addons/terrain_3d/
+          set -euo pipefail
+          ls -l project/addons/terrain_3d/bin/ || true
+
+          # strip may fail if glob doesn't match; don't fail the job for that
+          strip project/addons/terrain_3d/bin/libterrain.* 2>/dev/null || true
+
+          ls -l project/addons/terrain_3d/bin/ || true
+          cp "${{ github.workspace }}/README.md" "${{ github.workspace }}/LICENSE.txt" "${{ github.workspace }}/project/addons/terrain_3d/"
 
       - name: Upload Package
         uses: actions/upload-artifact@v4
