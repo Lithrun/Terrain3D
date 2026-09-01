@@ -1,0 +1,92 @@
+# FORK-LOCAL WORKFLOW -- no upstream counterpart.
+#
+# Upstream (TokisanGames/Terrain3D) has no file by this name, so this workflow can
+# never merge-conflict. Put ALL fork-specific build customization HERE rather than
+# editing upstream's workflows (android.yml, windows.yml, ...) or the shared
+# composite actions under .github/actions/ -- those are kept byte-identical to
+# upstream so `git merge upstream/main` stays clean.
+#
+# Builds the artifacts upstream does not:
+#   - Android x86_64   (upstream builds arm64 + arm32 only)
+#   - Windows x86_32   (upstream builds x86_64 + arm64 only)
+#
+# Artifacts are scoped per workflow run, so these land as their own `t3d-*`
+# artifacts and are untouched by the merge job in build.yml.
+
+name: 🧩 Other Artifacts
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: extras-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.config.label }} ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ debug, release ]
+        config:
+          - label: 🤖 Android x86_64
+            platform: android
+            arch: x86_64
+            flags: ""
+          - label: 🪟 Windows x86_32
+            platform: windows
+            arch: x86_32
+            flags: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      # --- Fork-local toolchain setup ---------------------------------------
+      # ./.github/actions/dependencies is upstream's and installs mingw only for
+      # windows/x86_64 and windows/arm64. x86_32 needs the i686 toolchain, and
+      # specifically the POSIX (gthreads) variant -- the win32 variant ships no
+      # std::mutex, which fails the build partway through.
+      #
+      # Installed before build-artifact runs; apt packages and update-alternatives
+      # are machine-level, so they survive that action's internal checkout.
+      - name: Setup Windows Mingw32
+        if: matrix.config.platform == 'windows' && matrix.config.arch == 'x86_32'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            mingw-w64 \
+            gcc-mingw-w64-i686-posix \
+            g++-mingw-w64-i686-posix
+          sudo update-alternatives --set i686-w64-mingw32-gcc /usr/bin/i686-w64-mingw32-gcc-posix
+          sudo update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix
+
+          echo "=== Toolchain in use ==="
+          which i686-w64-mingw32-g++
+          i686-w64-mingw32-g++ --version
+
+          echo "=== Sanity check: std::mutex compiles ==="
+          cat > /tmp/mutex_test.cpp <<'CPP'
+          #include <mutex>
+          int main() { std::mutex m; (void)m; return 0; }
+          CPP
+          i686-w64-mingw32-g++ -std=c++17 /tmp/mutex_test.cpp -c -o /tmp/mutex_test.o
+          echo "OK: std::mutex works."
+
+      # Android needs no extra setup -- upstream's dependencies action installs
+      # the NDK for any android arch, x86_64 included.
+
+      # --- Build, reusing upstream's action verbatim -------------------------
+      - uses: ./.github/actions/build-artifact
+        with:
+          cache-name: ${{ matrix.config.platform }}-${{ matrix.config.arch }}-${{ matrix.target }}
+          platform: ${{ matrix.config.platform }}
+          arch: ${{ matrix.config.arch }}
+          target: ${{ matrix.target }}
+          flags: ${{ matrix.config.flags }}

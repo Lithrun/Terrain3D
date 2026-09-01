@@ -38,19 +38,6 @@ runs:
         sudo update-alternatives --set x86_64-w64-mingw32-gcc /usr/bin/x86_64-w64-mingw32-gcc-posix
         sudo update-alternatives --set x86_64-w64-mingw32-g++ /usr/bin/x86_64-w64-mingw32-g++-posix
 
-    # Fork-local: upstream does not build Windows x86_32, so the shared mingw
-    # step above only covers x86_64. The i686 toolchain must use the POSIX
-    # (gthreads) variant or std::mutex is unavailable and the build fails.
-    - name: Setup Windows Mingw32
-      if: inputs.platform == 'windows' && inputs.arch == 'x86_32'
-      shell: sh
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y mingw-w64 gcc-mingw-w64-i686-posix g++-mingw-w64-i686-posix
-        sudo update-alternatives --set i686-w64-mingw32-gcc /usr/bin/i686-w64-mingw32-gcc-posix
-        sudo update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix
-        i686-w64-mingw32-g++ --version
-
     - name: Setup Windows Arm64 LLVM-mingW
       if: inputs.platform == 'windows' && inputs.arch == 'arm64'
       shell: sh
