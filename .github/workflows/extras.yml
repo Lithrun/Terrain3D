@@ -11,9 +11,14 @@
 #   - Windows x86_32   (upstream builds x86_64 + arm64 only)
 #   - Android x86_64   (upstream builds arm64 + arm32 only)
 #
-# Both targets (debug + release) are built for each, so the artifact is a complete
-# addon rather than a half-populated bin/. That is 4 scons runs back-to-back on one
-# runner: slower wall-clock than parallel jobs, hence the raised timeout.
+# Both targets (debug + release) are built for each. godot-cpp object files are
+# named per platform.target.arch, so nothing is shared between the four configs --
+# a cold run compiles the binding set four times over, ~25 min. The SCons cache
+# below is what keeps subsequent runs short, so it is deliberately NOT upstream's
+# load-cache action: that one keys on the branch ref and skips saving on an exact
+# hit, which freezes the cache at its first-run contents forever. Here the key
+# rolls per run and the save is unconditional, so each run starts from the
+# previous run's cache and only recompiles what actually changed.
 
 name: 🧩 Other Artifacts
 on:
@@ -27,6 +32,11 @@ concurrency:
 
 env:
   CACHE_NAME: extras-windows-x86_32-android-x86_64
+  SCONS_CACHE_DIR: ${{ github.workspace }}/.scons-cache
+  # Cap the cache dir before saving. SCons never evicts, and Terrain3D's
+  # SConstruct honours only SCONS_CACHE (no cache_limit option), so without this
+  # the tarball grows every run until restore/save costs more than it saves.
+  CACHE_LIMIT_MB: 1500
 
 jobs:
   build:
@@ -77,19 +87,20 @@ jobs:
           i686-w64-mingw32-g++ -std=c++17 /tmp/mutex_test.cpp -c -o /tmp/mutex_test.o
           echo "OK: std::mutex works."
 
-      # One cache shared by all four builds. The SCons cache is content-addressed,
-      # so mixing configs in a single directory is fine.
-      - name: Load SCons Cache
-        id: load-cache
-        uses: ./.github/actions/load-cache
+      # Rolling cache: unique key per run so the save always lands, with a prefix
+      # restore-key so we inherit the most recent previous run's cache.
+      - name: Restore SCons Cache
+        uses: actions/cache/restore@v6
         with:
-          cache-name: ${{ env.CACHE_NAME }}
-        continue-on-error: true
+          path: ${{ env.SCONS_CACHE_DIR }}
+          key: ${{ env.CACHE_NAME }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ env.CACHE_NAME }}-
 
       - name: Build Terrain3D
         shell: bash
         env:
-          SCONS_CACHE: ${{ github.workspace }}/.scons-cache/
+          SCONS_CACHE: ${{ env.SCONS_CACHE_DIR }}
         run: |
           set -euo pipefail
           for target in template_debug template_release; do
@@ -102,12 +113,37 @@ jobs:
             done
           done
 
+      # Drop the least-recently-modified entries until under the cap.
+      - name: Trim SCons Cache
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          dir="${{ env.SCONS_CACHE_DIR }}"
+          limit_mb="${{ env.CACHE_LIMIT_MB }}"
+          [ -d "$dir" ] || exit 0
+
+          list=$(mktemp)
+          find "$dir" -type f -printf '%T@\t%s\t%p\n' | sort -n > "$list"
+          total_mb=$(awk -F'\t' '{s+=$2} END {print int(s/1048576)}' "$list")
+          echo "cache size: ${total_mb} MB (cap ${limit_mb} MB)"
+
+          if [ "$total_mb" -gt "$limit_mb" ]; then
+            need=$(( (total_mb - limit_mb) * 1048576 ))
+            awk -F'\t' -v need="$need" \
+              '{ if (freed < need) { print $3; freed += $2 } }' "$list" \
+              | tr '\n' '\0' | xargs -0 -r rm -f
+            echo "trimmed to $(du -sm "$dir" | cut -f1) MB"
+          fi
+          rm -f "$list"
+
+      # Unconditional, so a run that fails partway still banks its progress.
       - name: Save SCons Cache
-        if: steps.load-cache.outputs.cache-hit != 'true'
+        if: always()
         uses: actions/cache/save@v6
         with:
-          path: ${{ github.workspace }}/.scons-cache/
-          key: ${{ env.CACHE_NAME }}-${{ github.ref }}
+          path: ${{ env.SCONS_CACHE_DIR }}
+          key: ${{ env.CACHE_NAME }}-${{ github.run_id }}
 
       # Mirrors upstream's build-artifact action so the artifact layout matches
       # the ones build.yml produces.
