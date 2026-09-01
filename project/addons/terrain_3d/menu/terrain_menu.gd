@@ -1,4 +1,4 @@
-# Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+# Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 # Menu for Terrain3D
 extends HBoxContainer
 
@@ -23,6 +23,10 @@ enum {
 	MENU_SEPARATOR2,
 	MENU_SET_UP_NAVIGATION,
 	MENU_BAKE_NAV_MESH,
+	MENU_SEPARATOR3,
+	MENU_BRUSH_DIRECTORY,
+	MENU_SEPARATOR4,
+	MENU_VIEW_LIVE_INFO_PANEL,
 }
 
 
@@ -42,6 +46,10 @@ func _enter_tree() -> void:
 	menu_button.get_popup().add_separator("", MENU_SEPARATOR2)
 	menu_button.get_popup().add_item("Set up Navigation...", MENU_SET_UP_NAVIGATION)
 	menu_button.get_popup().add_item("Bake NavMesh...", MENU_BAKE_NAV_MESH)
+	menu_button.get_popup().add_separator("", MENU_SEPARATOR3)
+	menu_button.get_popup().add_item("Open Brush Directory...", MENU_BRUSH_DIRECTORY)
+	menu_button.get_popup().add_separator("", MENU_SEPARATOR4)
+	menu_button.get_popup().add_check_item("View LiveInfo Panel", MENU_VIEW_LIVE_INFO_PANEL)
 	
 	menu_button.get_popup().id_pressed.connect(_on_menu_pressed)
 	menu_button.about_to_popup.connect(_on_menu_about_to_popup)
@@ -62,7 +70,14 @@ func _on_menu_pressed(p_id: int) -> void:
 			baker.set_up_navigation_popup()
 		MENU_BAKE_NAV_MESH:
 			baker.bake_nav_mesh()
-
+		MENU_BRUSH_DIRECTORY:
+			OS.shell_show_in_file_manager(ProjectSettings.globalize_path("res://addons/terrain_3d/brushes"))
+		MENU_VIEW_LIVE_INFO_PANEL:
+			plugin.ui.live_info_panel.enabled = !plugin.ui.live_info_panel.enabled
+			menu_button.get_popup().set_item_checked(MENU_VIEW_LIVE_INFO_PANEL, plugin.ui.live_info_panel.enabled)
+			# Reopen the popup since it is closed automatically
+			menu_button.show_popup()
+	
 
 func _on_menu_about_to_popup() -> void:
 	menu_button.get_popup().set_item_disabled(MENU_DIRECTORY_SETUP, not plugin.terrain)
@@ -70,6 +85,9 @@ func _on_menu_about_to_popup() -> void:
 	menu_button.get_popup().set_item_disabled(MENU_BAKE_ARRAY_MESH, not plugin.terrain)
 	menu_button.get_popup().set_item_disabled(MENU_BAKE_OCCLUDER, not plugin.terrain)
 
+	menu_button.get_popup().set_item_disabled(MENU_VIEW_LIVE_INFO_PANEL, not plugin.terrain)
+	menu_button.get_popup().set_item_checked(MENU_VIEW_LIVE_INFO_PANEL, plugin.ui.live_info_panel.enabled)
+	
 	if plugin.terrain:
 		var nav_regions: Array[NavigationRegion3D] = baker.find_terrain_nav_regions(plugin.terrain)
 		menu_button.get_popup().set_item_disabled(MENU_BAKE_NAV_MESH, nav_regions.size() == 0)

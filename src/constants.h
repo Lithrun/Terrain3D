@@ -1,12 +1,22 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #ifndef CONSTANTS_CLASS_H
 #define CONSTANTS_CLASS_H
+
+#include <functional>
+
+#include <godot_cpp/variant/color.hpp>
+#include <godot_cpp/variant/vector2.hpp>
+#include <godot_cpp/variant/vector2i.hpp>
+#include <godot_cpp/variant/vector3.hpp>
 
 // GDExtension uses the godot namespace, custom modules do not.
 #if defined(GDEXTENSION) && !defined(GODOT_MODULE)
 using namespace godot;
 #endif
+
+// File Paths (e.g. extras)
+#define OCEAN_MATERIAL_PATH "res://addons/terrain_3d/extras/shaders/M_ocean.tres"
 
 // Engine Shortcuts
 #define RS RenderingServer::get_singleton()
@@ -14,9 +24,9 @@ using namespace godot;
 #define IS_EDITOR Engine::get_singleton()->is_editor_hint()
 
 // Constants
-#define COLOR_NAN Color(NAN, NAN, NAN, NAN)
+static const Color COLOR_NAN{ NAN, NAN, NAN, NAN };
+static const Color COLOR_WHITE{ 1.0f, 1.0f, 1.0f, 1.0f };
 #define COLOR_BLACK Color(0.0f, 0.0f, 0.0f, 1.0f)
-#define COLOR_WHITE Color(1.0f, 1.0f, 1.0f, 1.0f)
 #define COLOR_ROUGHNESS Color(1.0f, 1.0f, 1.0f, 0.5f)
 #define COLOR_CHECKED Color(1.f, 1.f, 1.0f, -1.0f)
 #define COLOR_NORMAL Color(0.5f, 0.5f, 1.0f, 1.0f)
@@ -25,9 +35,6 @@ using namespace godot;
 // For consistency between MSVC, gcc, clang
 #ifndef FLT_MAX
 #define FLT_MAX __FLT_MAX__
-#endif
-#ifndef FLT_MIN
-#define FLT_MIN __FLT_MIN__
 #endif
 
 // Terrain3D::_warnings is uint8_t
@@ -45,6 +52,7 @@ static const Vector2 V2_ZERO{ 0.f, 0.f };
 static const Vector2 V2_MAX{ FLT_MAX, FLT_MAX };
 static const Vector2i V2I_ZERO{ 0, 0 };
 static const Vector2i V2I_MAX{ INT32_MAX, INT32_MAX };
+static const Vector2i V2I_MIN{ INT32_MIN, INT32_MIN };
 static const Vector3 V3_ZERO{ 0.f, 0.f, 0.f };
 static const Vector3 V3_MAX{ FLT_MAX, FLT_MAX, FLT_MAX };
 static const Vector3 V3_NAN{ NAN, NAN, NAN };
@@ -85,56 +93,56 @@ struct Vector3Hash {
 
 // Validation macros
 
-#define ASSERT(cond, ret)                                                                            \
-	if (!(cond)) {                                                                                   \
+#define ASSERT(cond, ret) \
+	if (!(cond)) { \
 		UtilityFunctions::push_error("Assertion '", #cond, "' failed at ", __FILE__, ":", __LINE__); \
-		return ret;                                                                                  \
+		return ret; \
 	}
 
 #define VOID // a return value for void, to avoid compiler warnings
 
 #define IS_INIT(ret) \
 	if (!_terrain) { \
-		return ret;  \
+		return ret; \
 	}
 
 #define IS_INIT_MESG(mesg, ret) \
-	if (!_terrain) {            \
-		LOG(ERROR, mesg);       \
-		return ret;             \
+	if (!_terrain) { \
+		LOG(ERROR, mesg); \
+		return ret; \
 	}
 
 #define IS_INIT_COND(cond, ret) \
-	if (!_terrain || cond) {    \
-		return ret;             \
+	if (!_terrain || cond) { \
+		return ret; \
 	}
 
 #define IS_INIT_COND_MESG(cond, mesg, ret) \
-	if (!_terrain || cond) {               \
-		LOG(ERROR, mesg);                  \
-		return ret;                        \
+	if (!_terrain || cond) { \
+		LOG(ERROR, mesg); \
+		return ret; \
 	}
 
-#define IS_INSTANCER_INIT(ret)                     \
+#define IS_INSTANCER_INIT(ret) \
 	if (!_terrain || !_terrain->get_instancer()) { \
-		return ret;                                \
+		return ret; \
 	}
 
-#define IS_INSTANCER_INIT_MESG(mesg, ret)          \
+#define IS_INSTANCER_INIT_MESG(mesg, ret) \
 	if (!_terrain || !_terrain->get_instancer()) { \
-		LOG(ERROR, mesg);                          \
-		return ret;                                \
+		LOG(ERROR, mesg); \
+		return ret; \
 	}
 
-#define IS_DATA_INIT(ret)                     \
+#define IS_DATA_INIT(ret) \
 	if (!_terrain || !_terrain->get_data()) { \
-		return ret;                           \
+		return ret; \
 	}
 
-#define IS_DATA_INIT_MESG(mesg, ret)          \
+#define IS_DATA_INIT_MESG(mesg, ret) \
 	if (!_terrain || !_terrain->get_data()) { \
-		LOG(ERROR, mesg);                     \
-		return ret;                           \
+		LOG(ERROR, mesg); \
+		return ret; \
 	}
 
 #endif // CONSTANTS_CLASS_H

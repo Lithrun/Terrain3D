@@ -1,22 +1,27 @@
 Games Using Terrain3D
 =======================
 
-Terrain3D is being used in the following games. To add yours, submit it to the #game-dev channel on [our discord server](https://tokisan.com/discord).
+Terrain3D is being used in the following games. To add yours, submit all the links and info you see below for your game to the #game-dev channel on [our discord server](https://tokisan.com/discord).
 
 | Game | Studio | Description |
 |------|--------|-------------|
-| [Out of the Ashes](https://store.steampowered.com/app/2296950/Out_of_the_Ashes/) | [Tokisan Games](https://twitter.com/TokisanGames) | Story driven medieval adventure
-| [Memora Wanderer](https://store.steampowered.com/app/2937690/Memora_Wanderer/) | [Maytch](https://twitter.com/Maytch) | Cute nostalgic RPG
+| [Out of the Ashes](https://store.steampowered.com/app/2296950/Out_of_the_Ashes/) | [Tokisan Games](https://x.com/TokisanGames) | Story driven medieval adventure
+| [Gunship Origins](https://store.steampowered.com/app/4055780/Gunship_Origins/) | [Jammin Games](https://jammin.games/) | Hellicopter combat
 | [Black Pellet](https://www.kickstarter.com/projects/raiseledwards/black-pellet) | [BlackPelletGame](https://x.com/BlackPelletGame) | Claymation, Western, TPS, Open world, Action-adventure
-| [No Gasoline](https://store.steampowered.com/app/2835350/No_Gasoline/) | [Mount Retro](https://twitter.com/mountretro) | Co-Op/Solo, Adventure-Simulation-Puzzle
+| [Memora Wanderer](https://store.steampowered.com/app/2937690/Memora_Wanderer/) | [Maytch](https://x.com/Maytch) | Cute nostalgic RPG
+| [No Gasoline](https://store.steampowered.com/app/2835350/No_Gasoline/) | [Mount Retro](https://x.com/mountretro) | Co-Op/Solo, Adventure-Simulation-Puzzle
 | [RotorSim](https://store.steampowered.com/app/3376070/RotorSim_Helicopter_Simulator/) | [Immaculate Lift](https://immaculate-lift-studio.github.io/studio-site/) | Retro helicopter simulation
 | [B&E Ski](https://www.youtube.com/watch?v=pD8Ea3utz9o) | [Penguin Milk](https://bande.ski/) | Skiing game
 | [Sacred Forest](https://store.steampowered.com/app/2864350/Sacred_Forest/) | [Blekoh](https://www.youtube.com/@sacredforestgame) | Open world 3D pixel art RPG
 | [Pest Apocalypse](https://store.steampowered.com/app/2506810/Pest_Apocalypse/) | [Kikimora Games](https://x.com/KikimoraGames) | Post-apocalyptic pizza delivery
 | [Forg](https://store.steampowered.com/app/2807130/Forg/) | [Crow Games](https://www.youtube.com/@crowgamesdev) | FPS tower defense
-| [open-fpsz](https://gitlab.com/open-fpsz/open-fpsz) | [anyreso](https://mastodon.gamedev.place/@anyreso) | Open-source, Tribes-like FPS multiplayer shooter
 | [Element](https://devanew.itch.io/element) | [Luke Aaron](https://www.youtube.com/watch?v=b18jDnY1YS4) | Gamejam FPS tactial shooter
 | [Castaway Cove](https://boolburg.itch.io/castaway-cove) | [Boolburg](https://boolburg.itch.io/) | Tropical island exploration
+| [The UNDA Legacy](https://store.steampowered.com/app/4709190/The_UNDA_Legacy/) | [Squirrelation Games](https://x.com/squirrgames) | Atmospheric 3D puzzle game
+| [Unaccessible](https://store.steampowered.com/app/3419670/Unaccessible/) | [Rembot Games](https://x.com/RembotGames) | 3rd person wheelchair platformer
+| [sunder](https://codeberg.org/sunder/sunder) | [anyreso](https://mastodon.gamedev.place/@anyreso) | A fast-paced free software shooter
+| [Crusator](https://store.steampowered.com/app/4052830/Crusator/) | [Crusator](https://x.com/CrusatorGame) | Twin-stick shooter
+| [Empyrean Defense](https://store.steampowered.com/app/3575690/Empyrean_Defense/) | [Nighthawk Studios](https://nighthawk-studios.com/games/) | Modern warfare tower defense game
 
 ## Demos
 

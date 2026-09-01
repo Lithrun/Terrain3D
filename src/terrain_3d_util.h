@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #ifndef TERRAIN3D_UTIL_CLASS_H
 #define TERRAIN3D_UTIL_CLASS_H
@@ -198,6 +198,27 @@ inline Rect2 aabb2rect(const AABB &p_aabb) {
 	return rect;
 }
 
+// Functions to match GLSL when needing to duplicate shader code CPU side.
+inline real_t smoothstep(const real_t p_low, const real_t p_high, const real_t p_value) {
+	real_t t = CLAMP((p_value - p_low) / (p_high - p_low), 0.f, 1.f);
+	return t * t * (3.f - 2.f * t);
+}
+
+inline Vector2 smoothstep(const real_t p_low, const real_t p_high, const Vector2 &p_value) {
+	Vector2 t = (p_value - Vector2(p_low, p_low)) / (p_high - p_low);
+	t.x = CLAMP(t.x, 0.f, 1.f);
+	t.y = CLAMP(t.y, 0.f, 1.f);
+	return t * t * (Vector2(3.f, 3.f) - 2.f * t);
+}
+
+inline Vector3 smoothstep(const real_t p_low, const real_t p_high, const Vector3 &p_value) {
+	Vector3 t = (p_value - Vector3(p_low, p_low, p_low)) / (p_high - p_low);
+	t.x = CLAMP(t.x, 0.f, 1.f);
+	t.y = CLAMP(t.y, 0.f, 1.f);
+	t.z = CLAMP(t.z, 0.f, 1.f);
+	return t * t * (Vector3(3.f, 3.f, 3.f) - 2.f * t);
+}
+
 ///////////////////////////
 // Controlmap Handling
 ///////////////////////////
@@ -316,10 +337,10 @@ _FORCE_INLINE_ bool differs(const T &a, const T &b) {
 
 // Sets A if different from B, otherwise returns
 #define SET_IF_DIFF(a, b) \
-	if (differs(a, b)) {  \
-		a = b;            \
-	} else {              \
-		return;           \
+	if (differs(a, b)) { \
+		a = b; \
+	} else { \
+		return; \
 	}
 
 #endif // TERRAIN3D_UTIL_CLASS_H

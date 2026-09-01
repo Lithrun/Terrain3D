@@ -1,7 +1,9 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #ifndef TERRAIN3D_REGION_CLASS_H
 #define TERRAIN3D_REGION_CLASS_H
+
+#include <godot_cpp/classes/image.hpp>
 
 #include "constants.h"
 #include "terrain_3d_util.h"

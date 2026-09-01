@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #ifndef TERRAIN3D_EDITOR_CLASS_H
 #define TERRAIN3D_EDITOR_CLASS_H
@@ -98,7 +98,7 @@ private:
 	Vector2 _get_rotated_uv(const Vector2 &p_uv, const real_t p_angle) const;
 	void _store_undo();
 	void _apply_undo(const Dictionary &p_data);
-	real_t _average(const AverageMode p_mode, const Vector3 &p_global_position, const real_t p_base, const real_t p_nan_val = 0.f, bool p_alt = false) const;
+	float _average(const AverageMode p_mode, const Vector3 &p_global_position, const float p_base, const float p_nan_val = 0.f, bool p_alt = false) const;
 	Color _average(const Vector3 &p_global_position, const Color &p_base) const;
 
 public:
@@ -109,7 +109,7 @@ public:
 	Terrain3D *get_terrain() const { return _terrain; }
 
 	void set_brush_data(const Dictionary &p_data);
-	Dictionary get_brush_data() const { return _brush_data; };
+	Dictionary get_brush_data() const { return _brush_data; }
 	void set_tool(const Tool p_tool);
 	Tool get_tool() const { return _tool; }
 	void set_operation(const Operation p_operation);

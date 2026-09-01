@@ -70,12 +70,14 @@
 		<method name="export_image" qualifiers="const">
 			<return type="int" enum="Error" />
 			<param index="0" name="file_name" type="String" />
-			<param index="1" name="map_type" type="int" enum="Terrain3DRegion.MapType" />
+			<param index="1" name="map_type" type="int" enum="Terrain3DRegion.MapType" default="0" />
+			<param index="2" name="mode" type="int" enum="Terrain3DData.ExportMode" default="0" />
 			<description>
 				Exports the specified map type as one of r16/raw, exr, jpg, png, webp, res, tres. 
 				R16 or exr are recommended for roundtrip external editing.
-				R16 can be edited by Krita, however you must know the dimensions and min/max before reimporting. This information is printed to the console.
+				R16 can be edited by Krita, however you must know the dimensions and min/max before reimporting. This information is printed to the console by this function. The global height range is used for r16 if previously calculated.
 				Res/tres stores in Godot's native data format.
+				Mode specifies exporting up to 16k x 16k slices or one file per region.
 			</description>
 		</method>
 		<method name="get_color" qualifiers="const">
@@ -174,9 +176,7 @@
 			<return type="float" />
 			<param index="0" name="global_position" type="Vector3" />
 			<description>
-				Returns the height at the requested position. If the position is close to a vertex, the pixel height on the heightmap is returned. Otherwise the value is interpolated from the 4 vertices surrounding the position.
-				Returns [code skip-lint]NAN[/code] if the requested position is a hole or outside of defined regions.
-				Also see [method Terrain3D.get_raycast_result] and [method Terrain3D.get_intersection] for alternative functions
+				Returns the height value on the heightmap at the specified position. Though this returns the data in the region, this is may not be the apparent ground level. See [method get_surface_height].
 			</description>
 		</method>
 		<method name="get_height_maps_rid" qualifiers="const">
@@ -215,7 +215,7 @@
 			<return type="Vector3" />
 			<param index="0" name="global_position" type="Vector3" />
 			<description>
-				Returns the terrain normal at the specified position. This function uses [method get_height].
+				Returns the terrain normal at the specified position. This function calls [method get_surface_height] 3 times.
 				Returns [code skip-lint]Vector3(NAN, NAN, NAN)[/code] if the requested position is a hole or outside of defined regions.
 			</description>
 		</method>
@@ -224,7 +224,7 @@
 			<param index="0" name="map_type" type="int" enum="Terrain3DRegion.MapType" />
 			<param index="1" name="global_position" type="Vector3" />
 			<description>
-				Returns the pixel for the map type associated with the specified position.
+				Returns the pixel for the map type associated with the specified position. Global position is descaled and floored to find the vertex grid coordinates.
 				Returns [code skip-lint]Color(NAN, NAN, NAN, NAN)[/code] if the position is outside of defined regions.
 			</description>
 		</method>
@@ -260,7 +260,7 @@
 			<return type="Vector2i" />
 			<param index="0" name="global_position" type="Vector3" />
 			<description>
-				Returns the calculated region location for the given global position. This is just a calculation and does no bounds checking or verification that a region exists. See [method get_region_map_index] for bounds checking, or [method has_region] for checking existance.
+				Returns the calculated region location for the given global position. This is just a calculation and does no bounds checking or verification that a region exists. See [method get_region_map_index] for bounds checking, or [method has_region] for checking if it exists.
 			</description>
 		</method>
 		<method name="get_region_map" qualifiers="const">
@@ -307,6 +307,15 @@
 			<description>
 				Returns the roughness modifier (wetness) on the color map alpha channel associated with the specified position.
 				Returns [code skip-lint]Color(NAN, NAN, NAN, NAN)[/code] if the position is outside of defined regions.
+			</description>
+		</method>
+		<method name="get_surface_height" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="global_position" type="Vector3" />
+			<description>
+				Returns the rendered height at the requested global position. This method starts with the raw height in the region data returned by [method get_height]. It then mixes in the [code skip-lint]ground_level[/code] and [code skip-lint]region_blend[/code] values from the material if they exist. Next, if global_position is very close to a vertex the value is returned. Otherwise, this is repeated 3 more times and the final height value is interpolated. Thus it's 4x faster to snap your vertex to [member Terrain3D.vertex_spacing] before calling it. This function is used for collision, navigation baking, and instancer placement.
+				Returns [code skip-lint]NAN[/code] if the requested position is a hole or outside of defined regions.
+				Also see [method Terrain3D.get_raycast_result] and [method Terrain3D.get_intersection] for alternative functions.
 			</description>
 		</method>
 		<method name="get_texture_id" qualifiers="const">
@@ -374,8 +383,11 @@
 		<method name="layered_to_image" qualifiers="const">
 			<return type="Image" />
 			<param index="0" name="map_type" type="int" enum="Terrain3DRegion.MapType" />
+			<param index="1" name="bounds" type="Rect2i" default="Rect2i(0, 0, 0, 0)" />
 			<description>
-				Returns an Image of the given map type that contains all regions in one large image. If the world has multiple islands, this function will return an image large enough to encompass all used regions, with black areas in between the islands.
+				Returns an Image of the given map type that contains all regions in one large image.
+				Bounds allows restricting the total world space, as the largest supported Image size is 16,384 x 16,384. Disregard vertex_spacing and use descaled bounds.
+				If the world has multiple data islands with empty regions in between, this function will return an Image large enough to encompass all of the used regions, with blank areas in between the regions.
 			</description>
 		</method>
 		<method name="load_directory">
@@ -528,8 +540,7 @@
 			<param index="0" name="global_position" type="Vector3" />
 			<param index="1" name="height" type="float" />
 			<description>
-				Sets the height value on the heightmap pixel associated with the specified position. See [method set_pixel] for important information.
-				Unlike [method get_height], which interpolates between vertices, this function does not and will set the pixel at floored coordinates.
+				Sets the height value on the heightmap at the specified position. See [method set_pixel] for important information. Also see [method get_height].
 			</description>
 		</method>
 		<method name="set_pixel">
@@ -538,7 +549,7 @@
 			<param index="1" name="global_position" type="Vector3" />
 			<param index="2" name="pixel" type="Color" />
 			<description>
-				Sets the pixel for the map type associated with the specified position. This method is fine for setting a few pixels, but if you wish to modify thousands of pixels quickly, you should get the region and use [method Terrain3DRegion.get_map], then edit the images directly.
+				Sets the pixel for the map type associated with the specified position. Global position is descaled and floored to find the vertex grid coordinates. This method is fine for setting a few pixels, but if you wish to modify thousands of pixels quickly, you should get the region and use [method Terrain3DRegion.get_map], then edit the images directly.
 				After setting pixels you need to call [method update_maps]. You may also need to regenerate collision if you don't have dynamic collision enabled.
 			</description>
 		</method>
@@ -645,6 +656,12 @@
 		</constant>
 		<constant name="HEIGHT_FILTER_MINIMUM" value="1" enum="HeightFilter">
 			Samples (1 &lt;&lt; lod) * 2 heights around the given coordinates and returns the lowest.
+		</constant>
+		<constant name="EXPORT_SLICES" value="0" enum="ExportMode">
+			The terrain is exported in up to 16k slices, as many as are needed.
+		</constant>
+		<constant name="EXPORT_REGIONS" value="1" enum="ExportMode">
+			The terrain is exported as one Image per region. Filenames receive the region coordinates as a suffix, e.g. -01_03.exr
 		</constant>
 		<constant name="REGION_MAP_SIZE" value="32">
 			Hard coded number of regions on a side. The total number of regions is this squared.

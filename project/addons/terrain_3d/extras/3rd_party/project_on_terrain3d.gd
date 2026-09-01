@@ -1,4 +1,4 @@
-# Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+# Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 # This script is an addon for HungryProton's Scatter https://github.com/HungryProton/scatter
 # It provides a `Project on Terrain3D` modifier, which allows Scatter 
 # to detect the terrain height from Terrain3D without using collision.
@@ -94,7 +94,7 @@
 		#var t: Transform3D = transforms.list[i]
 		#
 		#var location: Vector3 = (gt * t).origin
-		#var height: float = _terrain.data.get_height(location)		
+		#var height: float = _terrain.data.get_surface_height(location)
 		#if is_nan(height):
 			#continue
 		#

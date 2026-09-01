@@ -3,152 +3,32 @@ on: [ workflow_call, workflow_dispatch ]
 
 jobs:
   build:
-    name: 🪟 Windows ${{ matrix.arch }} ${{ matrix.target }}
-    runs-on: ubuntu-22.04
+    name: 🪟 Windows ${{ matrix.config.arch }} ${{ matrix.target }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows]
         target: [debug, release]
-        arch: [x86_32]
+        config:
+          - arch: x86_64
+            platform: windows
+            flags: ""
+          - arch: x86_32
+            platform: windows
+            flags: ""
+          - arch: arm64
+            platform: windows
+            flags: use_mingw=yes use_llvm=yes
 
     steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - uses: ./.github/actions/build-artifact
         with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Force godot-cpp submodule revision
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "=== godot-cpp before ==="
-          git -C godot-cpp rev-parse HEAD || true
-
-          # Make sure we can reach the commit even if the submodule was checked out shallow.
-          git -C godot-cpp fetch --prune --tags origin || true
-          git -C godot-cpp fetch origin b724219737883e311f4cc4da1b49a0960dd00d38 || true
-
-          git -C godot-cpp checkout -f b724219737883e311f4cc4da1b49a0960dd00d38
-
-          echo "=== godot-cpp after ==="
-          git -C godot-cpp rev-parse HEAD
-
-      - name: Install build deps (SCons, etc.)
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
-            python3 python3-pip \
-            pkg-config \
-            git \
-            scons
-
-      # Critical fix: use a MinGW i686 toolchain WITH thread support (POSIX/gthreads)
-      - name: Install MinGW (x86_32 toolchain, POSIX threads)
-        if: ${{ matrix.arch == 'x86_32' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-
-          sudo apt-get install -y \
-            mingw-w64 \
-            gcc-mingw-w64-i686-posix \
-            g++-mingw-w64-i686-posix
-
-          echo "=== Available i686 compilers ==="
-          ls -l /usr/bin/i686-w64-mingw32-g++* || true
-          ls -l /usr/bin/i686-w64-mingw32-gcc* || true
-
-          echo "=== Switch alternatives to POSIX variant (thread-enabled) ==="
-          sudo update-alternatives --set i686-w64-mingw32-gcc /usr/bin/i686-w64-mingw32-gcc-posix
-          sudo update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix
-
-          echo "=== Toolchain in use ==="
-          which i686-w64-mingw32-gcc
-          which i686-w64-mingw32-g++
-          i686-w64-mingw32-g++ -v
-
-          echo "=== Sanity check: std::mutex compiles ==="
-          cat > /tmp/mutex_test.cpp <<'CPP'
-          #include <mutex>
-          int main() { std::mutex m; (void)m; return 0; }
-          CPP
-          i686-w64-mingw32-g++ -std=c++17 /tmp/mutex_test.cpp -c -o /tmp/mutex_test.o
-          echo "OK: std::mutex works."
-
-      - name: Install MinGW (x86_64 toolchain)
-        if: ${{ matrix.arch == 'x86_64' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
-            mingw-w64 \
-            gcc-mingw-w64-x86-64 \
-            g++-mingw-w64-x86-64
-
-          echo "=== Toolchain in use ==="
-          which x86_64-w64-mingw32-gcc
-          which x86_64-w64-mingw32-g++
-          x86_64-w64-mingw32-g++ -v
-
-      - name: Build Terrain3D (verbose, keep log)
-        shell: bash
-        env:
-          TARGET: template_${{ matrix.target }}
-          ARCH: ${{ matrix.arch }}
-          # Force SCons to use the right compiler (esp. important for i686 posix)
-          CC: ${{ matrix.arch == 'x86_32' && 'i686-w64-mingw32-gcc-posix' || 'x86_64-w64-mingw32-gcc' }}
-          CXX: ${{ matrix.arch == 'x86_32' && 'i686-w64-mingw32-g++-posix' || 'x86_64-w64-mingw32-g++' }}
-        run: |
-          set -euo pipefail
-
-          echo "=== Build vars ==="
-          echo "TARGET=$TARGET"
-          echo "ARCH=$ARCH"
-          echo "CC=$CC"
-          echo "CXX=$CXX"
-
-          # If you want to hard-disable SCons cache usage, you can also set:
-          # export SCONS_CACHE=0
-          # But leaving it enabled is fine; your error isn't cache-related.
-
-          scons \
-            platform=windows \
-            arch="$ARCH" \
-            target="$TARGET" \
-            verbose=yes \
-            -j2 2>&1 | tee "scons-${ARCH}-${TARGET}.log"
-      - name: Prepare Files
-        shell: bash
-        run: |
-          set -euo pipefail
-          ls -l project/addons/terrain_3d/bin/ || true
-          strip project/addons/terrain_3d/bin/libterrain.* 2>/dev/null || true
-          ls -l project/addons/terrain_3d/bin/ || true
-          cp "${{ github.workspace }}/README.md" "${{ github.workspace }}/LICENSE.txt" "${{ github.workspace }}/project/addons/terrain_3d/"
-
-      - name: Upload Package
-        uses: actions/upload-artifact@v4
-        with:
-          include-hidden-files: true
-          name: t3d-${{ matrix.platform }}-${{ matrix.arch }}-${{ matrix.target }}
-          path: |
-            ${{ github.workspace }}/project/
-            ${{ github.workspace }}/scons.log
-
-  merge:
-    runs-on: ubuntu-latest
-    needs: build
-    steps:
-      - name: Merge Artifacts
-        uses: actions/upload-artifact/merge@v4
-        with:
-          include-hidden-files: true
-          name: ${{ github.event.repository.name }}
-          pattern: t3d-*
-          delete-merged: true
+          cache-name: ${{ matrix.config.platform }}-${{ matrix.config.arch }}-${{ matrix.target }}
+          platform: ${{ matrix.config.platform }}
+          arch: ${{ matrix.config.arch }}
+          target: ${{ matrix.target }}
+          flags: ${{ matrix.config.flags }}

@@ -80,6 +80,8 @@ Properties
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
    | ``int``                                                     | :ref:`label_size<class_Terrain3D_property_label_size>`                                         | ``48``          |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``Node3D``                                                  | :ref:`light_target<class_Terrain3D_property_light_target>`                                     |                 |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
    | :ref:`Terrain3DMaterial<class_Terrain3DMaterial>`           | :ref:`material<class_Terrain3D_property_material>`                                             |                 |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
    | ``int``                                                     | :ref:`mesh_lods<class_Terrain3D_property_mesh_lods>`                                           | ``7``           |
@@ -87,6 +89,26 @@ Properties
    | ``int``                                                     | :ref:`mesh_size<class_Terrain3D_property_mesh_size>`                                           | ``48``          |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
    | ``int``                                                     | :ref:`mouse_layer<class_Terrain3D_property_mouse_layer>`                                       | ``32``          |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | RenderingServer.ShadowCastingSetting                        | :ref:`ocean_cast_shadows<class_Terrain3D_property_ocean_cast_shadows>`                         | ``0``           |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``float``                                                   | :ref:`ocean_cull_margin<class_Terrain3D_property_ocean_cull_margin>`                           | ``20.0``        |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``bool``                                                    | :ref:`ocean_enabled<class_Terrain3D_property_ocean_enabled>`                                   | ``false``       |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | GeometryInstance3D.GIMode                                   | :ref:`ocean_gi_mode<class_Terrain3D_property_ocean_gi_mode>`                                   | ``0``           |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``Material``                                                | :ref:`ocean_material<class_Terrain3D_property_ocean_material>`                                 |                 |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``int``                                                     | :ref:`ocean_mesh_lods<class_Terrain3D_property_ocean_mesh_lods>`                               | ``7``           |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``int``                                                     | :ref:`ocean_mesh_size<class_Terrain3D_property_ocean_mesh_size>`                               | ``32``          |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``int``                                                     | :ref:`ocean_render_layers<class_Terrain3D_property_ocean_render_layers>`                       | ``1``           |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``int``                                                     | :ref:`ocean_tessellation_level<class_Terrain3D_property_ocean_tessellation_level>`             | ``0``           |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``float``                                                   | :ref:`ocean_vertex_spacing<class_Terrain3D_property_ocean_vertex_spacing>`                     | ``4.0``         |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
    | ``PhysicsMaterial``                                         | :ref:`physics_material<class_Terrain3D_property_physics_material>`                             |                 |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
@@ -129,6 +151,8 @@ Properties
    | ``bool``                                                    | :ref:`show_region_grid<class_Terrain3D_property_show_region_grid>`                             | ``false``       |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
    | ``bool``                                                    | :ref:`show_roughmap<class_Terrain3D_property_show_roughmap>`                                   | ``false``       |
+   +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
+   | ``bool``                                                    | :ref:`show_slope<class_Terrain3D_property_show_slope>`                                         | ``false``       |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
    | ``bool``                                                    | :ref:`show_texture_albedo<class_Terrain3D_property_show_texture_albedo>`                       | ``false``       |
    +-------------------------------------------------------------+------------------------------------------------------------------------------------------------+-----------------+
@@ -358,7 +382,7 @@ The list of texture and mesh assets used by Terrain3D. You can optionally save t
 
 .. container:: contribute
 
-	There is currently no description for this property. Please help us by :ref:`contributing one <doc_updating_the_class_reference>`!
+	There is currently no description for this property. Please help us by `contributing one <https://contributing.godotengine.org/en/latest/documentation/class_reference.html>`__!
 
 .. rst-class:: classref-item-separator
 
@@ -377,7 +401,7 @@ The list of texture and mesh assets used by Terrain3D. You can optionally save t
 
 .. container:: contribute
 
-	There is currently no description for this property. Please help us by :ref:`contributing one <doc_updating_the_class_reference>`!
+	There is currently no description for this property. Please help us by `contributing one <https://contributing.godotengine.org/en/latest/documentation/class_reference.html>`__!
 
 .. rst-class:: classref-item-separator
 
@@ -411,7 +435,7 @@ Tells the renderer how to cast shadows from the terrain onto other objects. This
 - |void| **set_clipmap_target**\ (\ value\: ``Node3D``\ )
 - ``Node3D`` **get_clipmap_target**\ (\ )
 
-The terrain mesh will center itself at the position of this node. If null, it will fall back to the camera position. See :ref:`set_camera()<class_Terrain3D_method_set_camera>`.
+The terrain clipmap mesh and lods will center itself at the position of this node. If null, or if in the editor, it will fall back to the camera position. See :ref:`set_camera()<class_Terrain3D_method_set_camera>`.
 
 .. rst-class:: classref-item-separator
 
@@ -562,7 +586,7 @@ Alias for :ref:`Terrain3DCollision.shape_size<class_Terrain3DCollision_property_
 - |void| **set_collision_target**\ (\ value\: ``Node3D``\ )
 - ``Node3D`` **get_collision_target**\ (\ )
 
-In dynamic mode, the terrain collision will center itself at the position of this node. If null, it will fall back to the :ref:`clipmap_target<class_Terrain3D_property_clipmap_target>` position and failing that will use the camera position. See :ref:`set_camera()<class_Terrain3D_method_set_camera>`.
+In dynamic mode, the terrain collision will center itself at the position of this node. If null, it will fall back to the :ref:`clipmap_target<class_Terrain3D_property_clipmap_target>` position and failing that will use the camera position. The camera is always used in the editor. See :ref:`set_camera()<class_Terrain3D_method_set_camera>`.
 
 .. rst-class:: classref-item-separator
 
@@ -579,7 +603,7 @@ In dynamic mode, the terrain collision will center itself at the position of thi
 - |void| **set_cull_margin**\ (\ value\: ``float``\ )
 - ``float`` **get_cull_margin**\ (\ )
 
-This margin is added to the vertical component of the terrain bounding box (AABB). The terrain already sets its AABB from :ref:`Terrain3DData.get_height_range()<class_Terrain3DData_method_get_height_range>`, which is calculated while sculpting. This setting only needs to be used if the shader has expanded the terrain beyond the AABB and the terrain meshes are being culled at certain viewing angles. This might happen from using :ref:`Terrain3DMaterial.world_background<class_Terrain3DMaterial_property_world_background>` with NOISE and a height value larger than the terrain heights. This setting is similar to ``GeometryInstance3D.extra_cull_margin``, but it only affects the Y axis.
+This margin is added to the vertical component of the terrain mesh bounding boxes (AABB). The terrain already sets its AABB from :ref:`Terrain3DData.get_height_range()<class_Terrain3DData_method_get_height_range>`, which is calculated while sculpting. This setting only needs to be used if the shader has expanded the terrain beyond the AABB and the terrain meshes are being culled at certain viewing angles. This might happen from using :ref:`Terrain3DMaterial.world_background<class_Terrain3DMaterial_property_world_background>` with NOISE and a height value larger than the terrain heights. This setting is similar to ``GeometryInstance3D.extra_cull_margin``, but it only affects the Y axis.
 
 .. rst-class:: classref-item-separator
 
@@ -701,7 +725,7 @@ GeometryInstance3D.GIMode **gi_mode** = ``1`` :ref:`🔗<class_Terrain3D_propert
 - |void| **set_gi_mode**\ (\ value\: GeometryInstance3D.GIMode\ )
 - GeometryInstance3D.GIMode **get_gi_mode**\ (\ )
 
-Tells the renderer which global illumination mode to use for Terrain3D. This sets ``GeometryInstance3D.gi_mode`` in the engine.
+Tells the renderer which global illumination mode to use for the terrain mesh. This sets ``GeometryInstance3D.gi_mode`` in the engine.
 
 .. rst-class:: classref-item-separator
 
@@ -755,7 +779,7 @@ Alias for :ref:`Terrain3DInstancer.mode<class_Terrain3DInstancer_property_mode>`
 - |void| **set_label_distance**\ (\ value\: ``float``\ )
 - ``float`` **get_label_distance**\ (\ )
 
-If label_distance is non-zero (try 1024-4096) it will generate and display region coordinates in the viewport so you can identify the exact region files you are editing. This setting is the visible distance of the labels.
+If label_distance is non-zero (try 1024-4096) it will generate and display region coordinates in the viewport so you can identify the exact region files you are editing. This setting is the visible distance of the labels. With the mouse in the viewport you can press the hotkey to toggle visibility (default `2`).
 
 .. rst-class:: classref-item-separator
 
@@ -773,6 +797,23 @@ If label_distance is non-zero (try 1024-4096) it will generate and display regio
 - ``int`` **get_label_size**\ (\ )
 
 Sets the font size for region labels. See :ref:`label_distance<class_Terrain3D_property_label_distance>`.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_light_target:
+
+.. rst-class:: classref-property
+
+``Node3D`` **light_target** :ref:`🔗<class_Terrain3D_property_light_target>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_light_target**\ (\ value\: ``Node3D``\ )
+- ``Node3D`` **get_light_target**\ (\ )
+
+This sets the _light_direction and _light_color uniforms in the terrain and ocean shaders, if they are present. You can use them for light scattering, detecting if the light is above the horizon or the terrain faces the sun, etc.
 
 .. rst-class:: classref-item-separator
 
@@ -806,7 +847,7 @@ A custom material for Terrain3D. You can optionally save this as an external ``.
 - |void| **set_mesh_lods**\ (\ value\: ``int``\ )
 - ``int`` **get_mesh_lods**\ (\ )
 
-The number of lods generated in the mesh. Enable wireframe mode in the viewport to see them.
+The number of lods generated for the terrain meshes. Enable wireframe mode in the viewport to see them.
 
 .. rst-class:: classref-item-separator
 
@@ -847,6 +888,176 @@ This variable sets the editor render layer (21-32) to be used by ``get_intersect
 You may place other objects on this layer, however ``get_intersection`` will report intersections with them. So either dedicate this layer to Terrain3D, or if you must use all 32 layers, dedicate this one during editing or when using ``get_intersection``, and then you can use it during game play.
 
 See :ref:`get_intersection()<class_Terrain3D_method_get_intersection>`.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_cast_shadows:
+
+.. rst-class:: classref-property
+
+RenderingServer.ShadowCastingSetting **ocean_cast_shadows** = ``0`` :ref:`🔗<class_Terrain3D_property_ocean_cast_shadows>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_cast_shadows**\ (\ value\: RenderingServer.ShadowCastingSetting\ )
+- RenderingServer.ShadowCastingSetting **get_ocean_cast_shadows**\ (\ )
+
+Tells the renderer how to cast shadows from the ocean onto other objects. This sets ``GeometryInstance3D.ShadowCastingSetting`` in the engine.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_cull_margin:
+
+.. rst-class:: classref-property
+
+``float`` **ocean_cull_margin** = ``20.0`` :ref:`🔗<class_Terrain3D_property_ocean_cull_margin>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_cull_margin**\ (\ value\: ``float``\ )
+- ``float`` **get_ocean_cull_margin**\ (\ )
+
+This margin is added to the vertical component of the ocean mesh bounding boxes (AABB). When you set the height of your waves in the shader, this margin should be adjusted. If it's too small, the meshes will clip at certain camera angles. If you set it too large, the renderer may have slightly more work to do. This setting is similar to ``GeometryInstance3D.extra_cull_margin``, but it only affects the Y axis.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_enabled:
+
+.. rst-class:: classref-property
+
+``bool`` **ocean_enabled** = ``false`` :ref:`🔗<class_Terrain3D_property_ocean_enabled>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **is_ocean_enabled**\ (\ )
+
+Generates another clipmap mesh, which you can apply an ocean shader to and configure independently of the terrain mesh.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_gi_mode:
+
+.. rst-class:: classref-property
+
+GeometryInstance3D.GIMode **ocean_gi_mode** = ``0`` :ref:`🔗<class_Terrain3D_property_ocean_gi_mode>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_gi_mode**\ (\ value\: GeometryInstance3D.GIMode\ )
+- GeometryInstance3D.GIMode **get_ocean_gi_mode**\ (\ )
+
+Tells the renderer which global illumination mode to use for the ocean mesh. This sets ``GeometryInstance3D.gi_mode`` in the engine.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_material:
+
+.. rst-class:: classref-property
+
+``Material`` **ocean_material** :ref:`🔗<class_Terrain3D_property_ocean_material>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_material**\ (\ value\: ``Material``\ )
+- ``Material`` **get_ocean_material**\ (\ )
+
+You can assign a ``StandardMaterial`` here for testing, but you really need a ``ShaderMaterial``. Start with the example in ``addons/terrain_3d/extras/shaders/M_ocean.tres``, which you can build on. Or use any of the ocean shaders available around the internet, provided you set `skip_vertex_transform` and copy the geomorphing code from our `vertex()` shader, which will properly handle the LOD transitions on the clipmap.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_mesh_lods:
+
+.. rst-class:: classref-property
+
+``int`` **ocean_mesh_lods** = ``7`` :ref:`🔗<class_Terrain3D_property_ocean_mesh_lods>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_mesh_lods**\ (\ value\: ``int``\ )
+- ``int`` **get_ocean_mesh_lods**\ (\ )
+
+The number of lods generated for the ocean meshes. Enable wireframe mode in the viewport to see them.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_mesh_size:
+
+.. rst-class:: classref-property
+
+``int`` **ocean_mesh_size** = ``32`` :ref:`🔗<class_Terrain3D_property_ocean_mesh_size>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_mesh_size**\ (\ value\: ``int``\ )
+- ``int`` **get_ocean_mesh_size**\ (\ )
+
+The correlated size of the ocean meshes. Lod0 has ``4*ocean_mesh_size + 2`` quads per side. E.g. when ocean_mesh_size=8, lod0 has 34 quads to a side, including 2 quads for seams.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_render_layers:
+
+.. rst-class:: classref-property
+
+``int`` **ocean_render_layers** = ``1`` :ref:`🔗<class_Terrain3D_property_ocean_render_layers>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_render_layers**\ (\ value\: ``int``\ )
+- ``int`` **get_ocean_render_layers**\ (\ )
+
+The render layers the ocean is drawn on. This sets ``VisualInstance3D.layers`` in the engine.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_tessellation_level:
+
+.. rst-class:: classref-property
+
+``int`` **ocean_tessellation_level** = ``0`` :ref:`🔗<class_Terrain3D_property_ocean_tessellation_level>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_tessellation_level**\ (\ value\: ``int``\ )
+- ``int`` **get_ocean_tessellation_level**\ (\ )
+
+This setting creates up to 6 additional subdivisions of the ocean mesh below LOD0, which provides more vertices for the vertex shader if desired. You can see it in wireframe mode.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_ocean_vertex_spacing:
+
+.. rst-class:: classref-property
+
+``float`` **ocean_vertex_spacing** = ``4.0`` :ref:`🔗<class_Terrain3D_property_ocean_vertex_spacing>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_ocean_vertex_spacing**\ (\ value\: ``float``\ )
+- ``float`` **get_ocean_vertex_spacing**\ (\ )
+
+The distance between vertices, settable up to 100. Godot units are typically considered to be meters. This laterally scales the ocean vertices on X and Z axes, but does not scale wave height.
 
 .. rst-class:: classref-item-separator
 
@@ -901,7 +1112,7 @@ There is no undo for this operation. However you can apply it again to reslice, 
 - |void| **set_render_layers**\ (\ value\: ``int``\ )
 - ``int`` **get_render_layers**\ (\ )
 
-The render layers the terrain is drawn on. This sets ``VisualInstance3D.layers`` in the engine. The defaults is layer 1 and 32 (for the mouse cursor). When you set this, make sure the layer for :ref:`mouse_layer<class_Terrain3D_property_mouse_layer>` is included, or set that variable again after this so that the mouse cursor works.
+The render layers the terrain is drawn on. This sets ``VisualInstance3D.layers`` in the engine. The defaults is layer 1 and 32 (for the mouse cursor). When you set this via code, make sure the layer for :ref:`mouse_layer<class_Terrain3D_property_mouse_layer>` is included, or set that variable again after this so that the mouse cursor and :ref:`get_intersection()<class_Terrain3D_method_get_intersection>` work.
 
 .. rst-class:: classref-item-separator
 
@@ -996,7 +1207,7 @@ Alias for :ref:`Terrain3DMaterial.show_colormap<class_Terrain3DMaterial_property
 - |void| **set_show_contours**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_contours**\ (\ )
 
-Overlays contour lines on the terrain. Customize the options in the material when enabled. Press `4` with the mouse in the viewport to toggle.
+Overlays contour lines on the terrain. Customize the options in the material when enabled. With the mouse in the viewport you can press the hotkey to toggle visibility (default `3`).
 
 Alias for :ref:`Terrain3DMaterial.show_contours<class_Terrain3DMaterial_property_show_contours>`.
 
@@ -1127,7 +1338,7 @@ Alias for :ref:`Terrain3DMaterial.show_grey<class_Terrain3DMaterial_property_sho
 - |void| **set_show_region_grid**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_region_grid**\ (\ )
 
-Alias for :ref:`Terrain3DMaterial.show_region_grid<class_Terrain3DMaterial_property_show_region_grid>`. Press `1` with the mouse in the viewport to toggle.
+Alias for :ref:`Terrain3DMaterial.show_region_grid<class_Terrain3DMaterial_property_show_region_grid>`. With the mouse in the viewport you can press the hotkey to toggle visibility (default `1`).
 
 .. rst-class:: classref-item-separator
 
@@ -1163,7 +1374,7 @@ Alias for :ref:`Terrain3DMaterial.show_heightmap<class_Terrain3DMaterial_propert
 - |void| **set_show_instancer_grid**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_instancer_grid**\ (\ )
 
-Overlays the 32x32m instancer grid on the terrain, which shows how the instancer data is partitioned. Press `2` with the mouse in the viewport to toggle.
+Overlays the 32x32m instancer grid on the terrain, which shows how the instancer data is partitioned.
 
 Alias for :ref:`Terrain3DMaterial.show_instancer_grid<class_Terrain3DMaterial_property_show_instancer_grid>`.
 
@@ -1220,7 +1431,7 @@ Alias for :ref:`Terrain3DMaterial.show_navigation<class_Terrain3DMaterial_proper
 - |void| **set_show_region_grid**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_region_grid**\ (\ )
 
-Overlays the region grid on the terrain. This is more accurate than the region grid gizmo for determining where the region border is when editing. Press `1` with the mouse in the viewport to toggle.
+Overlays the region grid on the terrain. This is more accurate than the region grid gizmo for determining where the region border is when editing. With the mouse in the viewport you can press the hotkey to toggle visibility (default `1`).
 
 Alias for :ref:`Terrain3DMaterial.show_region_grid<class_Terrain3DMaterial_property_show_region_grid>`.
 
@@ -1242,6 +1453,25 @@ Alias for :ref:`Terrain3DMaterial.show_region_grid<class_Terrain3DMaterial_prope
 Albedo is set to the roughness modification map as grey scale. Middle grey, 0.5 means no roughness modification. Black would be high gloss while white is very rough.
 
 Alias for :ref:`Terrain3DMaterial.show_roughmap<class_Terrain3DMaterial_property_show_roughmap>`.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3D_property_show_slope:
+
+.. rst-class:: classref-property
+
+``bool`` **show_slope** = ``false`` :ref:`🔗<class_Terrain3D_property_show_slope>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_show_slope**\ (\ value\: ``bool``\ )
+- ``bool`` **get_show_slope**\ (\ )
+
+Overlays slope color on the terrain. Customize the options in the material when enabled. With the mouse in the viewport you can press the hotkey to toggle visibility (default `4`).
+
+Alias for :ref:`Terrain3DMaterial.show_slope<class_Terrain3DMaterial_property_show_slope>`.
 
 .. rst-class:: classref-item-separator
 
@@ -1353,7 +1583,7 @@ Alias for :ref:`Terrain3DMaterial.show_texture_rough<class_Terrain3DMaterial_pro
 - |void| **set_show_vertex_grid**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_vertex_grid**\ (\ )
 
-Overlays the vertex grid on the terrain, showing where each vertex is. Press `3` with the mouse in the viewport to toggle.
+Overlays the vertex grid on the terrain, showing where each vertex is. With the mouse in the viewport you can press the hotkey to toggle visibility (default `5`).
 
 Alias for :ref:`Terrain3DMaterial.show_vertex_grid<class_Terrain3DMaterial_property_show_vertex_grid>`.
 
@@ -1405,9 +1635,9 @@ The current version of Terrain3D.
 - |void| **set_vertex_spacing**\ (\ value\: ``float``\ )
 - ``float`` **get_vertex_spacing**\ (\ )
 
-The distance between vertices. Godot units are typically considered to be meters. This laterally scales the terrain on X and Z axes.
+The distance between vertices, settable up to 100. Godot units are typically considered to be meters. This laterally scales the terrain on X and Z axes.
 
-This variable changes the global position of landscape features. A mountain peak might be at (512, 512), but with a vertex spacing of 2.0 it is now located at (1024, 1024).
+This variable changes the global position of landscape features. A mountain peak might be at (512, 512), but with a vertex spacing of 2.0 it is now located at (1024, 1024). It retains the same height.
 
 All Terrain3D functions with a global_position expect an absolute global value. If you would normally use :ref:`Terrain3DData.import_images()<class_Terrain3DData_method_import_images>` to import an image in the region at (-1024, -1024), with a vertex_spacing of 2, you'll need to import that image at (-2048, -2048) to place it in the same region.
 
@@ -1522,7 +1752,7 @@ This function can operate in one of two modes selected by ``gpu_mode``:
 
 
 
-GPU mode places a camera at the specified point and "looks" at the terrain. It uses the depth texture to determine how far away the intersection point is. It requires the use of an editor render layer (default 32) while using this function. See :ref:`mouse_layer<class_Terrain3D_property_mouse_layer>`.
+GPU mode places a camera at the specified point and "looks" at the terrain. It uses the depth texture to determine how far away the intersection point is. It requires the use of an editor render layer, (default 32, set with :ref:`mouse_layer<class_Terrain3D_property_mouse_layer>`) while using this function.
 
 
 
@@ -1550,7 +1780,7 @@ Possible return values:
 
 
 
-Also see :ref:`get_raycast_result()<class_Terrain3D_method_get_raycast_result>` and :ref:`Terrain3DData.get_height()<class_Terrain3DData_method_get_height>` for alternative functions.
+Also see :ref:`get_raycast_result()<class_Terrain3D_method_get_raycast_result>` and :ref:`Terrain3DData.get_surface_height()<class_Terrain3DData_method_get_surface_height>` for alternative functions.
 
 .. rst-class:: classref-item-separator
 
@@ -1582,7 +1812,7 @@ Collision_mask has the physics layers the query will detect as a bitmask. By def
 
 See `PhysicsDirectSpaceState3D.intersect_ray <https://docs.godotengine.org/en/stable/classes/class_physicsdirectspacestate3d.html#class-physicsdirectspacestate3d-method-intersect-ray>`__ for how to interpret the resulting dictionary.
 
-Also see :ref:`get_intersection()<class_Terrain3D_method_get_intersection>` and :ref:`Terrain3DData.get_height()<class_Terrain3DData_method_get_height>` for alternative functions.
+Also see :ref:`get_intersection()<class_Terrain3D_method_get_intersection>` and :ref:`Terrain3DData.get_surface_height()<class_Terrain3DData_method_get_surface_height>` for alternative functions.
 
 .. rst-class:: classref-item-separator
 
@@ -1639,6 +1869,7 @@ Sets the EditorPlugin Object connected to Terrain3D.
 Queues the terrain mesh and collision to snap their positions to the target nodes on the next physics frame. Typically this only happens if the targets have moved sufficiently far. See :ref:`clipmap_target<class_Terrain3D_property_clipmap_target>` and :ref:`collision_target<class_Terrain3D_property_collision_target>`.
 
 .. |virtual| replace:: :abbr:`virtual (This method should typically be overridden by the user to have any effect.)`
+.. |required| replace:: :abbr:`required (This method is required to be overridden when extending its base class.)`
 .. |const| replace:: :abbr:`const (This method has no side effects. It doesn't modify any of the instance's member variables.)`
 .. |vararg| replace:: :abbr:`vararg (This method accepts any number of arguments after the ones described here.)`
 .. |constructor| replace:: :abbr:`constructor (This method is used to construct a type.)`

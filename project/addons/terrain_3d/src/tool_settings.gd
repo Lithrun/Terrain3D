@@ -1,4 +1,4 @@
-# Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+# Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 # Tool settings bar for Terrain3D
 extends PanelContainer
 
@@ -83,7 +83,7 @@ func _ready() -> void:
 	add_setting({ "name":"color_picker", "type":SettingType.PICKER, "list":main_list, "default":Terrain3DEditor.COLOR,
 							"flags":NO_LABEL, "tooltip":"Pick Color from the terrain." })
 
-	add_setting({ "name":"roughness", "type":SettingType.SLIDER, "list":main_list, "default":-65,
+	add_setting({ "name":"roughness", "type":SettingType.SLIDER, "list":main_list, "default":-50,
 							"unit":"%", "range":Vector3(-100, 100, 1), "flags":ADD_SEPARATOR })
 	add_setting({ "name":"roughness_picker", "type":SettingType.PICKER, "list":main_list, "default":Terrain3DEditor.ROUGHNESS,
 							"flags":NO_LABEL, "tooltip":"Pick Wetness from the terrain." })
@@ -165,8 +165,8 @@ func _ready() -> void:
 	collision_list = create_submenu(main_list, "Collision", Layout.VERTICAL)
 	add_setting({ "name":"on_collision", "label":"On Collision", "type":SettingType.CHECKBOX, "list":collision_list,
 							"default":true })
-	add_setting({ "name":"raycast_height", "label":"Raycast Height", "type":SettingType.SLIDER, 
-							"list":collision_list, "default":10, "unit":"m", "range":Vector3(0, 200, .25) })
+	add_setting({ "name":"raycast_height", "label":"Raycast Height", "type":SettingType.SLIDER, "list":collision_list,
+							"default":10, "unit":"m", "range":Vector3(0, 200, .25), "flags":ALLOW_LARGER })
 
 	if DisplayServer.is_touchscreen_available():
 		add_setting({ "name":"invert", "label":"Invert", "type":SettingType.CHECKBOX, "list":main_list, "default":false, "flags":ADD_SEPARATOR })

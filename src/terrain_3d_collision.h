@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #ifndef TERRAIN3D_COLLISION_CLASS_H
 #define TERRAIN3D_COLLISION_CLASS_H
@@ -64,7 +64,7 @@ public:
 
 	void build();
 	void reset_target_position() { _last_snapped_pos = V2I_MAX; }
-	void update(const bool p_rebuild = false);
+	void update(const Vector2i &p_region_loc = V2I_MAX, const bool p_rebuild = false);
 	void destroy();
 
 	void set_mode(const CollisionMode p_mode);
@@ -78,9 +78,9 @@ public:
 	void set_radius(const uint16_t p_radius);
 	uint16_t get_radius() const { return _radius; }
 	void set_layer(const uint32_t p_layers);
-	uint32_t get_layer() const { return _layer; };
+	uint32_t get_layer() const { return _layer; }
 	void set_mask(const uint32_t p_mask);
-	uint32_t get_mask() const { return _mask; };
+	uint32_t get_mask() const { return _mask; }
 	void set_priority(const real_t p_priority);
 	real_t get_priority() const { return _priority; }
 	void set_physics_material(const Ref<PhysicsMaterial> &p_mat);

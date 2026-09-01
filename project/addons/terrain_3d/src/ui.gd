@@ -1,4 +1,4 @@
-# Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+# Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 # UI for Terrain3D
 extends Node
 
@@ -9,6 +9,7 @@ const TerrainToolbar: Script = preload("res://addons/terrain_3d/src/toolbar.gd")
 const TerrainToolSettings: Script = preload("res://addons/terrain_3d/src/tool_settings.gd")
 const OperationBuilder: Script = preload("res://addons/terrain_3d/src/operation_builder.gd")
 const GradientOperationBuilder: Script = preload("res://addons/terrain_3d/src/gradient_operation_builder.gd")
+const LIVE_INFO_PANEL: String = "res://addons/terrain_3d/src/live_info_panel.tscn"
 
 # Decal colors
 const COLOR_RAISE := Color(1., 1., 1.) # White
@@ -41,10 +42,13 @@ const OP_NEGATIVE_ONLY: int = 0x02
 		image.fill(Color.WHITE)
 		value.create_from_image(image)
 		region_texture = value
+
+
 var plugin: EditorPlugin # Actually Terrain3DEditorPlugin, but Godot still has CRC errors
 var toolbar: TerrainToolbar
 var tool_settings: TerrainToolSettings
 var terrain_menu: TerrainMenu
+var live_info_panel: Terrain3DLiveInfoPanel
 var setting_has_changed: bool = false
 var visible: bool = false
 var picking: int = Terrain3DEditor.TOOL_MAX
@@ -110,6 +114,7 @@ func _enter_tree() -> void:
 	editor_decal_timer.timeout.connect(func():
 		get_tree().create_tween().tween_property(self, "editor_decal_fade", 0.0, 0.15))
 	add_child(editor_decal_timer)
+	setup_live_info_panel()
 
 
 func _exit_tree() -> void:
@@ -121,6 +126,7 @@ func _exit_tree() -> void:
 	tool_settings.queue_free()
 	terrain_menu.queue_free()
 	editor_decal_timer.queue_free()
+	live_info_panel.queue_free()
 
 
 func set_visible(p_visible: bool, p_menu_only: bool = false) -> void:
@@ -136,16 +142,15 @@ func set_visible(p_visible: bool, p_menu_only: bool = false) -> void:
 		visible = p_visible
 		toolbar.set_visible(p_visible)
 		tool_settings.set_visible(p_visible)
+		live_info_panel.set_visible(p_visible)
 
-	if plugin.editor:
-		if p_visible:
+	if plugin.editor and plugin.terrain and p_visible:
 			await get_tree().process_frame # Won't work, otherwise
 			if plugin.debug:
 				print("Terrain3DUI: set_visible: calling _on_tool_changed()")
 			_on_tool_changed(_selected_tool, _selected_operation)
-		else:
-			plugin.editor.set_tool(Terrain3DEditor.TOOL_MAX)
-			plugin.editor.set_operation(Terrain3DEditor.OP_MAX)
+			if _selected_tool in [ Terrain3DEditor.REGION, Terrain3DEditor.NAVIGATION ]:
+				plugin.terrain.material.update(Terrain3DMaterial.FULL_REBUILD)
 
 	
 func set_menu_visibility(p_list: Control, p_visible: bool) -> void:
@@ -279,7 +284,6 @@ func _on_tool_changed(p_tool: Terrain3DEditor.Tool, p_operation: Terrain3DEditor
 	if plugin.debug:
 		print("Terrain3DUI: _on_tool_changed: calling _on_setting_changed()")
 	_on_setting_changed()
-	plugin.update_region_grid()
 
 
 func _on_setting_changed(p_setting: Variant = null) -> void:
@@ -399,9 +403,7 @@ func update_decal() -> void:
 			if plugin.terrain.material.get_world_background() == Terrain3DMaterial.WorldBackground.NONE:
 				if r_map[index] == 0 and active_operation == Terrain3DEditor.ADD:
 					r_map[index] = -index - 1
-				else:
-					r_map[index] = r_map[index]
-			
+
 			match active_operation:
 				Terrain3DEditor.ADD:
 					if r_map[index] <= 0:
@@ -594,10 +596,33 @@ func set_decal_rotation(p_rot: float) -> void:
 func _on_picking(p_type: Terrain3DEditor.Tool, p_callback: Callable) -> void:
 	picking = p_type
 	picking_callback = p_callback
+	if picking == Terrain3DEditor.Tool.INSTANCER:
+		if not get_tree().process_frame.is_connected(_update_picker_highlight):
+			get_tree().process_frame.connect(_update_picker_highlight)
+	else:
+		if get_tree().process_frame.is_connected(_update_picker_highlight):
+			get_tree().process_frame.disconnect(_update_picker_highlight)
 
+		
+func _update_picker_highlight() -> void:
+	var mesh_asset_id: int = -1
+	if plugin.terrain.data.has_regionp(plugin.mouse_global_position):
+		mesh_asset_id = plugin.terrain.instancer.get_closest_mesh_id(plugin.mouse_global_position)
+	for i: int in plugin.terrain.assets.get_mesh_count():
+		var ma: Terrain3DMeshAsset = plugin.terrain.assets.get_mesh_asset(i)
+		if ma:
+			ma.set_highlighted(i == mesh_asset_id)
+		
 
 func clear_picking() -> void:
 	picking = Terrain3DEditor.TOOL_MAX
+	if get_tree().process_frame.is_connected(_update_picker_highlight):
+		get_tree().process_frame.disconnect(_update_picker_highlight)
+		for i: int in range(0,  plugin.terrain.assets.get_mesh_count()):
+			var ma: Terrain3DMeshAsset = plugin.terrain.assets.get_mesh_asset(i)
+			if ma:
+				ma.set_highlighted(false)
+		plugin.asset_dock.update_dock()
 
 
 func is_picking() -> bool:
@@ -641,7 +666,7 @@ func pick(p_global_position: Vector3) -> void:
 		if picking_callback.is_valid():
 			picking_callback.call(picking, color, p_global_position)
 			picking_callback = Callable()
-		picking = Terrain3DEditor.TOOL_MAX
+		clear_picking()
 	
 	elif operation_builder and operation_builder.is_picking():
 		operation_builder.pick(p_global_position, plugin.terrain)
@@ -649,3 +674,18 @@ func pick(p_global_position: Vector3) -> void:
 
 func set_button_editor_icon(p_button: Button, p_icon_name: String) -> void:
 	p_button.icon = EditorInterface.get_base_control().get_theme_icon(p_icon_name, "EditorIcons")
+
+
+func setup_live_info_panel() -> void:
+	live_info_panel = load(LIVE_INFO_PANEL).instantiate()
+	live_info_panel.plugin = plugin
+	var main_screen = EditorInterface.get_editor_main_screen()
+	if not main_screen:
+		push_error("Terrain3DUI: setup_live_info_panel(): Failed to get main screen")
+		return
+	var viewport_container = main_screen.find_child("*Node3DEditorViewportContainer*", true, false)
+	if not viewport_container:
+		push_error("Terrain3DUI: setup_live_info_panel(): Failed to get main viewport_container")
+		return
+	viewport_container.add_child(live_info_panel, true)
+	live_info_panel.visible = false

@@ -292,8 +292,6 @@ If > 0, sets ``GeometryInstance3D.fade_mode = self``, sets this margin in ``Geom
 
 Limited to the smaller of half the distance between LOD0 and LOD1, or 64m.
 
-Currently broken and hidden in the inspector until `Godot issue #102799 <https://github.com/godotengine/godot/issues/102799>`__ is fixed.
-
 .. rst-class:: classref-item-separator
 
 ----
@@ -825,6 +823,7 @@ Enables or disables adding a highlight material with a random color to the overl
 Sets the far visible distance for the specified Level of Detail (LOD).
 
 .. |virtual| replace:: :abbr:`virtual (This method should typically be overridden by the user to have any effect.)`
+.. |required| replace:: :abbr:`required (This method is required to be overridden when extending its base class.)`
 .. |const| replace:: :abbr:`const (This method has no side effects. It doesn't modify any of the instance's member variables.)`
 .. |vararg| replace:: :abbr:`vararg (This method accepts any number of arguments after the ones described here.)`
 .. |constructor| replace:: :abbr:`constructor (This method is used to construct a type.)`

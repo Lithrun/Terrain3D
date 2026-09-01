@@ -136,7 +136,7 @@ enum **Tool**: :ref:`🔗<enum_Terrain3DEditor_Tool>`
 
 .. container:: contribute
 
-	There is currently no description for this enum. Please help us by :ref:`contributing one <doc_updating_the_class_reference>`!
+	There is currently no description for this enum. Please help us by `contributing one <https://contributing.godotengine.org/en/latest/documentation/class_reference.html>`__!
 
 
 
@@ -335,7 +335,55 @@ Start brushing.
 
 |void| **set_brush_data**\ (\ data\: ``Dictionary``\ ) :ref:`🔗<class_Terrain3DEditor_method_set_brush_data>`
 
-Sets all brush settings used in the editor plugin.
+Sets all brush settings used in the editor plugin. It uses these parameters, if available:
+
+- brush:Array{Image, Texture2D}
+
+- Expands to brush_image, brush_image_size, and brush_texture
+
+- size:float
+
+- strength:float
+
+- mouse_pressure:float
+
+- height:float
+
+- color:Color
+
+- roughness:float
+
+- enable_texture:bool
+
+- texture_filter:bool
+
+- asset_id:int
+
+- margin:float
+
+- slope:Vector2
+
+- enable_angle:bool
+
+- dynamic_angle:bool
+
+- angle:float
+
+- enable_scale:bool
+
+- scale:float
+
+- auto_regions:bool
+
+- align_to_view:bool
+
+- gamma:float
+
+- brush_spin_speed:float
+
+- gradient_points:{Vector3, Vector3}
+
+Also see :ref:`Terrain3DInstancer.add_instances()<class_Terrain3DInstancer_method_add_instances>` and :ref:`Terrain3DInstancer.remove_instances()<class_Terrain3DInstancer_method_remove_instances>` for additional parameters used by the instancer.
 
 .. rst-class:: classref-item-separator
 
@@ -398,6 +446,7 @@ Begin a sculpting or painting operation. Prepares to create an undo/redo commit.
 End a sculpting or painting operation. Commits any regions marked with :ref:`Terrain3DRegion.edited<class_Terrain3DRegion_property_edited>` in the undo/redo system and clears that flag.
 
 .. |virtual| replace:: :abbr:`virtual (This method should typically be overridden by the user to have any effect.)`
+.. |required| replace:: :abbr:`required (This method is required to be overridden when extending its base class.)`
 .. |const| replace:: :abbr:`const (This method has no side effects. It doesn't modify any of the instance's member variables.)`
 .. |vararg| replace:: :abbr:`vararg (This method accepts any number of arguments after the ones described here.)`
 .. |constructor| replace:: :abbr:`constructor (This method is used to construct a type.)`

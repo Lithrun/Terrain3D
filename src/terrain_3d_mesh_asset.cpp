@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #include <godot_cpp/classes/editor_interface.hpp>
 #include <godot_cpp/classes/editor_paths.hpp>
@@ -489,7 +489,7 @@ void Terrain3DMeshAsset::set_lod_range(const int p_lod, const real_t p_distance)
 		LOG(ERROR, "p_lod out of range. Valid range is 0 - ", _lod_ranges.size() - 1);
 		return;
 	}
-	SET_IF_DIFF(_lod_ranges[p_lod], CLAMP(p_distance, 0.f, 100000.f));
+	SET_IF_DIFF(_lod_ranges[p_lod], CLAMP(float(p_distance), 0.f, 100000.f));
 	LOG(INFO, "ID ", _id, ", ", _name, ": Setting LOD ", p_lod, " visibility range: ", _lod_ranges[p_lod]);
 	LOG(DEBUG, "Emitting instancer_setting_changed, ID: ", _id);
 	emit_signal("instancer_setting_changed", _id);
@@ -694,6 +694,5 @@ void Terrain3DMeshAsset::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "lod7_range", PROPERTY_HINT_RANGE, "0.,4096.0,.05,or_greater"), "set_lod7_range", "get_lod7_range");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "lod8_range", PROPERTY_HINT_RANGE, "0.,4096.0,.05,or_greater"), "set_lod8_range", "get_lod8_range");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "lod9_range", PROPERTY_HINT_RANGE, "0.,4096.0,.05,or_greater"), "set_lod9_range", "get_lod9_range");
-	// Fade disabled until https://github.com/godotengine/godot/issues/102799 is fixed
-	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fade_margin", PROPERTY_HINT_RANGE, "0.,64.0,.05,or_greater", PROPERTY_USAGE_NO_EDITOR), "set_fade_margin", "get_fade_margin");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "fade_margin", PROPERTY_HINT_RANGE, "0.,64.0,.05,or_greater"), "set_fade_margin", "get_fade_margin");
 }

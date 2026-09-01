@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/time.hpp>
@@ -578,7 +578,7 @@ void Terrain3DEditor::_operate_map(const Vector3 &p_global_position, const real_
 	}
 	// Update Dynamic / Editor collision
 	if (_terrain->get_collision_mode() == Terrain3DCollision::DYNAMIC_EDITOR) {
-		_terrain->get_collision()->update(true);
+		_terrain->get_collision()->update(V2I_MAX, true);
 	}
 	if (_tool == HEIGHT || _tool == SCULPT || _tool == TEXTURE || _tool == AUTOSHADER) {
 		_terrain->snap();
@@ -734,15 +734,11 @@ void Terrain3DEditor::_apply_undo(const Dictionary &p_data) {
 		}
 	}
 	_terrain->get_instancer()->update_mmis(-1, V2I_MAX, true);
-	if (_terrain->get_plugin()->has_method("update_region_grid")) {
-		LOG(DEBUG, "Calling GDScript update_region_grid()");
-		_terrain->get_plugin()->call("update_region_grid");
-	}
 }
 
 // Returns average of height, blend (as real_t(0-255)), or roughness. Overloaded version handles average color
-real_t Terrain3DEditor::_average(const AverageMode p_mode, const Vector3 &p_global_position, const real_t p_base,
-		const real_t p_nan_val, bool p_alt) const {
+float Terrain3DEditor::_average(const AverageMode p_mode, const Vector3 &p_global_position, const float p_base,
+		const float p_nan_val, bool p_alt) const {
 	IS_DATA_INIT(NAN);
 	Terrain3DData *data = _terrain->get_data();
 	real_t vertex_spacing = _terrain->get_vertex_spacing();
@@ -771,7 +767,7 @@ real_t Terrain3DEditor::_average(const AverageMode p_mode, const Vector3 &p_glob
 	}
 
 	Color pixel;
-	real_t left, right, up, down;
+	float left, right, up, down;
 	pixel = data->get_pixel(map_type, left_position);
 	left = std::isnan(pixel.r) ? p_nan_val : pixel[index];
 	pixel = data->get_pixel(map_type, right_position);
@@ -783,9 +779,9 @@ real_t Terrain3DEditor::_average(const AverageMode p_mode, const Vector3 &p_glob
 
 	if (p_mode == AVG_BLEND) {
 		if (p_alt) {
-			return real_t(get_blend(p_base) + get_blend(left) + get_blend(right) + get_blend(up) + get_blend(down)) * 0.2f;
+			return (get_blend(p_base) + get_blend(left) + get_blend(right) + get_blend(up) + get_blend(down)) * 0.2f;
 		} else {
-			return Math::lerp(get_blend(p_base), 128.f, .1f);
+			return Math::lerp(float(get_blend(p_base)), 128.f, .1f);
 		}
 	} else {
 		return (p_base + left + right + up + down) * 0.2f;
@@ -898,8 +894,8 @@ void Terrain3DEditor::set_brush_data(const Dictionary &p_data) {
 void Terrain3DEditor::set_tool(const Tool p_tool) {
 	Tool old_tool = _tool;
 	SET_IF_DIFF(_tool, CLAMP(p_tool, Tool(0), TOOL_MAX));
-	if (_terrain && (_tool == Tool::NAVIGATION || old_tool == Tool::NAVIGATION)) {
-		_terrain->get_material()->update(true);
+	if (_terrain && (_tool == Tool::NAVIGATION || old_tool == Tool::NAVIGATION || _tool == Tool::REGION || old_tool == Tool::REGION)) {
+		_terrain->get_material()->update(Terrain3DMaterial::FULL_REBUILD);
 	}
 }
 
@@ -910,16 +906,14 @@ void Terrain3DEditor::set_operation(const Operation p_operation) {
 // Called on mouse click
 void Terrain3DEditor::start_operation(const Vector3 &p_global_position) {
 	IS_DATA_INIT_MESG("Terrain isn't initialized", VOID);
+	// In case mouse-up was intercepted (by a modal dialog, focus change, or a raycast miss, etc...)
+	stop_operation();
 	LOG(INFO, "Setting up undo snapshot");
 	_undo_data.clear();
 	_undo_data["region_locations"] = _terrain->get_data()->get_region_locations().duplicate();
 	_is_operating = true;
-	_original_regions = TypedArray<Terrain3DRegion>(); // New pointers instead of clear
-	_edited_regions = TypedArray<Terrain3DRegion>();
-	_added_removed_locations = TypedArray<Vector2i>();
 	// Reset counter at start to ensure first click places an instance
 	_terrain->get_instancer()->reset_density_counter();
-	_terrain->get_data()->clear_edited_area();
 	_operation_position = p_global_position;
 	_operation_movement = V3_ZERO;
 }

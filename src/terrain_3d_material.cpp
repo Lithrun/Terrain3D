@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/fast_noise_lite.hpp>
@@ -21,32 +21,41 @@
 void Terrain3DMaterial::_preload_shaders() {
 	// Preprocessor loading of external shader inserts
 	_parse_shader(
-#include "shaders/samplers.glsl"
-			, "samplers");
+#include "shaders/auto_shader.glsl"
+			, "auto_shader");
 	_parse_shader(
 #include "shaders/backgrounds.glsl"
 			, "backgrounds");
 	_parse_shader(
-#include "shaders/auto_shader.glsl"
-			, "auto_shader");
-	_parse_shader(
-#include "shaders/dual_scaling.glsl"
-			, "dual_scaling");
-	_parse_shader(
-#include "shaders/overlays.glsl"
-			, "overlays");
-	_parse_shader(
-#include "shaders/displacement.glsl"
-			, "displacement");
+#include "shaders/editor_functions.glsl"
+			, "editor_functions");
 	_parse_shader(
 #include "shaders/debug_views.glsl"
 			, "debug_views");
 	_parse_shader(
+#include "shaders/displacement.glsl"
+			, "displacement");
+	_parse_shader(
+#include "shaders/dual_scaling.glsl"
+			, "dual_scaling");
+	_parse_shader(
+#include "shaders/macro_variation.glsl"
+			, "macro_variation");
+	_parse_shader(
+#include "shaders/max_regions.glsl"
+			, "macro_variation");
+	_parse_shader(
+#include "shaders/overlays.glsl"
+			, "overlays");
+	_parse_shader(
 #include "shaders/pbr_views.glsl"
 			, "pbr_views");
 	_parse_shader(
-#include "shaders/editor_functions.glsl"
-			, "editor_functions");
+#include "shaders/projection.glsl"
+			, "projection");
+	_parse_shader(
+#include "shaders/samplers.glsl"
+			, "samplers");
 
 	// Load main code
 	_shader_code["main"] = String(
@@ -133,7 +142,43 @@ String Terrain3DMaterial::_apply_inserts(const String &p_shader, const Array &p_
 String Terrain3DMaterial::_generate_shader_code() const {
 	LOG(INFO, "Generating default shader code");
 	Array excludes;
-	if (_world_background != FLAT) {
+	switch (_max_regions) {
+		case MAX_REGIONS_64:
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_512");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_128:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_512");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_256:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_512");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_512:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_1024:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_512");
+			break;
+	}
+	if (_world_background != NONE) {
+		excludes.push_back("NONE_FUNCTIONS");
+		excludes.push_back("NONE_CHECK");
+	}
+	if (_world_background == NONE) {
 		excludes.push_back("FLAT_UNIFORMS");
 		excludes.push_back("FLAT_FUNCTIONS");
 		excludes.push_back("FLAT_VERTEX");
@@ -145,29 +190,69 @@ String Terrain3DMaterial::_generate_shader_code() const {
 		excludes.push_back("WORLD_NOISE_VERTEX");
 		excludes.push_back("WORLD_NOISE_FRAGMENT");
 	}
-	if (_texture_filtering == LINEAR) {
-		excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
-		excludes.push_back("NOISE_SAMPLER_NEAREST");
-	} else {
-		excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
-		excludes.push_back("NOISE_SAMPLER_LINEAR");
+	switch (_texture_filtering) {
+		case LINEAR_ANISOTROPIC:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST_ANISOTROPIC");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
+			break;
+		case LINEAR:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST_ANISOTROPIC");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR_ANISOTROPIC");
+			break;
+		case NEAREST_ANISOTROPIC:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR_ANISOTROPIC");
+			break;
+		case NEAREST:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST_ANISOTROPIC");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR_ANISOTROPIC");
+			break;
 	}
-	if (!_auto_shader) {
+	if (!_auto_shader_enabled) {
 		excludes.push_back("AUTO_SHADER_UNIFORMS");
 		excludes.push_back("AUTO_SHADER");
 	}
-	if (!_dual_scaling) {
+	if (!_dual_scaling_enabled) {
 		excludes.push_back("DUAL_SCALING_UNIFORMS");
 		excludes.push_back("DUAL_SCALING");
 		excludes.push_back("DUAL_SCALING_CONDITION_0");
 		excludes.push_back("DUAL_SCALING_CONDITION_1");
 		excludes.push_back("DUAL_SCALING_MIX");
-		excludes.push_back("TRI_SCALING");
+	}
+	if (!_macro_variation_enabled) {
+		excludes.push_back("MACRO_VARIATION_UNIFORMS");
+		excludes.push_back("MACRO_VARIATION");
+	}
+	if (!_projection_enabled) {
+		excludes.push_back("PROJECTION");
 	}
 	if (_terrain->get_tessellation_level() == 0) {
 		excludes.push_back("DISPLACEMENT_UNIFORMS");
 		excludes.push_back("DISPLACEMENT_FUNCTIONS");
 		excludes.push_back("DISPLACEMENT_VERTEX");
+	}
+	if (!_output_albedo_enabled) {
+		excludes.push_back("OUTPUT_ALBEDO");
+	} else {
+		excludes.push_back("OUTPUT_ALBEDO_GREY");
+	}
+	if (!_output_roughness_enabled) {
+		excludes.push_back("OUTPUT_ROUGHNESS");
+	}
+	if (!_output_specular_enabled) {
+		excludes.push_back("OUTPUT_SPECULAR");
+	} else {
+		excludes.push_back("OUTPUT_SPECULAR_NONE");
+	}
+	if (!_output_normal_map_enabled) {
+		excludes.push_back("OUTPUT_NORMAL_MAP");
+	}
+	if (!_output_ambient_occlusion_enabled) {
+		excludes.push_back("OUTPUT_AMBIENT_OCCLUSION");
 	}
 	String shader = _apply_inserts(_shader_code["main"], excludes);
 	return shader;
@@ -263,19 +348,78 @@ String Terrain3DMaterial::_strip_comments(const String &p_shader) const {
 	return vector_to_string(stripped);
 }
 
-String Terrain3DMaterial::_generate_buffer_shader_code() {
+String Terrain3DMaterial::_generate_buffer_shader_code() const {
 	LOG(INFO, "Generating default displacement buffer shader code");
 	Array excludes;
-	if (_texture_filtering == LINEAR) {
-		excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
-		excludes.push_back("NOISE_SAMPLER_NEAREST");
-	} else {
-		excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
-		excludes.push_back("NOISE_SAMPLER_LINEAR");
+	switch (_max_regions) {
+		case MAX_REGIONS_64:
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_512");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_128:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_512");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_256:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_512");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_512:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_1024");
+			break;
+		case MAX_REGIONS_1024:
+			excludes.push_back("MAX_REGIONS_64");
+			excludes.push_back("MAX_REGIONS_128");
+			excludes.push_back("MAX_REGIONS_256");
+			excludes.push_back("MAX_REGIONS_512");
+			break;
 	}
-	if (!_auto_shader) {
+	if (_world_background != NONE) {
+		excludes.push_back("NONE_FUNCTIONS");
+		excludes.push_back("NONE_CHECK");
+	}
+	if (_world_background == NONE) {
+		excludes.push_back("FLAT_UNIFORMS");
+		excludes.push_back("FLAT_FUNCTIONS");
+		excludes.push_back("FLAT_FRAGMENT");
+	}
+	switch (_texture_filtering) {
+		case LINEAR_ANISOTROPIC:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST_ANISOTROPIC");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
+			break;
+		case LINEAR:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST_ANISOTROPIC");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR_ANISOTROPIC");
+			break;
+		case NEAREST_ANISOTROPIC:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR_ANISOTROPIC");
+			break;
+		case NEAREST:
+			excludes.push_back("TEXTURE_SAMPLERS_NEAREST_ANISOTROPIC");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR");
+			excludes.push_back("TEXTURE_SAMPLERS_LINEAR_ANISOTROPIC");
+			break;
+	}
+	if (!_auto_shader_enabled) {
 		excludes.push_back("AUTO_SHADER_UNIFORMS");
 		excludes.push_back("AUTO_SHADER");
+	}
+	if (!_projection_enabled) {
+		excludes.push_back("PROJECTION");
 	}
 	String shader = _apply_inserts(_shader_code["displacement_buffer"], excludes);
 	return shader;
@@ -321,6 +465,9 @@ String Terrain3DMaterial::_inject_editor_code(const String &p_shader) const {
 	}
 	if (_show_contours) {
 		insert_names.push_back("OVERLAY_CONTOURS_SETUP");
+	}
+	if (_show_slope) {
+		insert_names.push_back("OVERLAY_SLOPE_SETUP");
 	}
 	// Apply pending inserts
 	for (const String &name : insert_names) {
@@ -412,8 +559,11 @@ String Terrain3DMaterial::_inject_editor_code(const String &p_shader) const {
 	if (_show_contours) {
 		insert_names.push_back("OVERLAY_CONTOURS_RENDER");
 	}
-	if (_show_region_grid) {
-		insert_names.push_back("OVERLAY_REGION_GRID");
+	if (_show_slope) {
+		insert_names.push_back("OVERLAY_SLOPE_RENDER");
+	}
+	if (_show_navigation || (_terrain && _terrain->get_editor() && _terrain->get_editor()->get_tool() == Terrain3DEditor::NAVIGATION)) {
+		insert_names.push_back("EDITOR_NAVIGATION");
 	}
 	if (_show_instancer_grid) {
 		insert_names.push_back("OVERLAY_INSTANCER_GRID");
@@ -421,9 +571,8 @@ String Terrain3DMaterial::_inject_editor_code(const String &p_shader) const {
 	if (_show_vertex_grid) {
 		insert_names.push_back("OVERLAY_VERTEX_GRID");
 	}
-	// Editor Functions
-	if (_show_navigation || (_terrain && _terrain->get_editor() && _terrain->get_editor()->get_tool() == Terrain3DEditor::NAVIGATION)) {
-		insert_names.push_back("EDITOR_NAVIGATION");
+	if (_show_region_grid || (_terrain && _terrain->get_editor() && _terrain->get_editor()->get_tool() == Terrain3DEditor::REGION)) {
+		insert_names.push_back("EDITOR_REGION_GRID");
 	}
 	if (_terrain && _terrain->get_editor()) {
 		insert_names.push_back("EDITOR_DECAL_RENDER");
@@ -552,7 +701,7 @@ void Terrain3DMaterial::_update_shader() {
 	notify_property_list_changed();
 }
 
-void Terrain3DMaterial::_update_uniforms(const RID &p_material) {
+void Terrain3DMaterial::_update_uniforms(const RID &p_material, const uint32_t p_flags) {
 	IS_DATA_INIT(VOID);
 	LOG(EXTREME, "Updating uniforms in shader");
 
@@ -575,20 +724,33 @@ void Terrain3DMaterial::_update_uniforms(const RID &p_material) {
 	}
 
 	TypedArray<Vector2i> region_locations = data->get_region_locations();
-	LOG(EXTREME, "Region_locations size: ", region_locations.size(), " ", region_locations);
-	RS->material_set_param(p_material, "_region_locations", region_locations);
+	PackedVector2Array padded_locations;
+	padded_locations.resize(_max_regions);
+	for (int i = 0; i < MIN(region_locations.size(), _max_regions); ++i) {
+		padded_locations[i] = region_locations[i];
+	}
+	RS->material_set_param(p_material, "_region_locations", padded_locations);
 
 	real_t region_size = real_t(_terrain->get_region_size());
 	LOG(EXTREME, "Setting region size in material: ", region_size);
 	RS->material_set_param(p_material, "_region_size", region_size);
 	RS->material_set_param(p_material, "_region_texel_size", 1.0f / region_size);
 
-	RS->material_set_param(p_material, "_height_maps", data->get_height_maps_rid());
-	RS->material_set_param(p_material, "_control_maps", data->get_control_maps_rid());
-	RS->material_set_param(p_material, "_color_maps", data->get_color_maps_rid());
-	LOG(EXTREME, "Height map RID: ", data->get_height_maps_rid());
-	LOG(EXTREME, "Control map RID: ", data->get_control_maps_rid());
-	LOG(EXTREME, "Color map RID: ", data->get_color_maps_rid());
+	if (p_flags & REGION_ARRAYS) {
+		if (data->get_region_count() > 0) {
+			RS->material_set_param(p_material, "_height_maps", data->get_height_maps_rid());
+			RS->material_set_param(p_material, "_control_maps", data->get_control_maps_rid());
+			RS->material_set_param(p_material, "_color_maps", data->get_color_maps_rid());
+			LOG(EXTREME, "Height map RID: ", data->get_height_maps_rid());
+			LOG(EXTREME, "Control map RID: ", data->get_control_maps_rid());
+			LOG(EXTREME, "Color map RID: ", data->get_color_maps_rid());
+		} else {
+			// Send dummy texture array to stop compatibility error spam
+			RS->material_set_param(p_material, "_height_maps", _generated_dummy.get_rid());
+			RS->material_set_param(p_material, "_control_maps", _generated_dummy.get_rid());
+			RS->material_set_param(p_material, "_color_maps", _generated_dummy.get_rid());
+		}
+	}
 
 	real_t spacing = _terrain->get_vertex_spacing();
 	LOG(EXTREME, "Setting vertex spacing in material: ", spacing);
@@ -612,28 +774,33 @@ void Terrain3DMaterial::_update_uniforms(const RID &p_material) {
 		return;
 	}
 
-	RS->material_set_param(p_material, "_texture_array_albedo", asset_list->get_albedo_array_rid());
-	RS->material_set_param(p_material, "_texture_array_normal", asset_list->get_normal_array_rid());
+	if (asset_list->get_generated_array_size() > 0) {
+		if (p_flags & TEXTURE_ARRAYS) {
+			RS->material_set_param(p_material, "_texture_array_albedo", asset_list->get_albedo_array_rid());
+			RS->material_set_param(p_material, "_texture_array_normal", asset_list->get_normal_array_rid());
+		}
+		set_show_checkered(false);
+		LOG(DEBUG, "Texture count >0: ", asset_list->get_generated_array_size(), ", disabling checkered view");
+	} else {
+		// Send dummy texture array to stop compatibility error spam
+		RS->material_set_param(p_material, "_texture_array_albedo", _generated_dummy.get_rid());
+		RS->material_set_param(p_material, "_texture_array_normal", _generated_dummy.get_rid());
+
+		// Enable checkered view if texture_count is 0, disable if not
+		if (_debug_view_checkered == false) {
+			set_show_checkered(true);
+			LOG(DEBUG, "No textures, enabling checkered view");
+		}
+	}
+
 	RS->material_set_param(p_material, "_texture_color_array", asset_list->get_texture_colors());
 	RS->material_set_param(p_material, "_texture_normal_depth_array", asset_list->get_texture_normal_depths());
 	RS->material_set_param(p_material, "_texture_ao_strength_array", asset_list->get_texture_ao_strengths());
 	RS->material_set_param(p_material, "_texture_ao_affect_array", asset_list->get_texture_ao_light_affects());
 	RS->material_set_param(p_material, "_texture_roughness_mod_array", asset_list->get_texture_roughness_mods());
 	RS->material_set_param(p_material, "_texture_uv_scale_array", asset_list->get_texture_uv_scales());
-	RS->material_set_param(p_material, "_texture_vertical_projections", asset_list->get_texture_vertical_projections());
 	RS->material_set_param(p_material, "_texture_detile_array", asset_list->get_texture_detiles());
 	RS->material_set_param(p_material, "_texture_displacement_array", asset_list->get_texture_displacements());
-
-	// Enable checkered view if texture_count is 0, disable if not
-	if (asset_list->get_generated_array_size() == 0) {
-		if (_debug_view_checkered == false) {
-			set_show_checkered(true);
-			LOG(DEBUG, "No textures, enabling checkered view");
-		}
-	} else {
-		set_show_checkered(false);
-		LOG(DEBUG, "Texture count >0: ", asset_list->get_generated_array_size(), ", disabling checkered view");
-	}
 }
 
 void Terrain3DMaterial::_set_shader_parameters(const Dictionary &p_dict) {
@@ -665,7 +832,14 @@ void Terrain3DMaterial::initialize(Terrain3D *p_terrain) {
 	}
 	_shader.instantiate();
 	_buffer_shader.instantiate();
-	update(true);
+	// Create dummy texture array to avoid empty sampler2DArrays
+	if (!_generated_dummy.get_rid().is_valid()) {
+		Ref<Image> img = Image::create(1, 1, false, Image::FORMAT_RF);
+		TypedArray<Image> ia = { img };
+		_generated_dummy.create(ia);
+	}
+
+	update(FULL_REBUILD);
 }
 
 void Terrain3DMaterial::uninitialize() {
@@ -681,6 +855,7 @@ void Terrain3DMaterial::destroy() {
 	_shader_code.clear();
 	_active_params.clear();
 	_shader_params.clear();
+	_generated_dummy.clear();
 	if (_material.is_valid()) {
 		RS->free_rid(_material);
 		_material = RID();
@@ -691,14 +866,14 @@ void Terrain3DMaterial::destroy() {
 	}
 }
 
-void Terrain3DMaterial::update(bool p_full) {
-	if (p_full) {
+void Terrain3DMaterial::update(uint32_t p_flags) {
+	if (p_flags & FULL_REBUILD) {
 		_update_shader();
 	}
-	_update_uniforms(_material);
+	_update_uniforms(_material, p_flags);
 	IS_INIT(VOID);
 	if (_terrain->get_tessellation_level() > 0) {
-		_update_uniforms(_buffer_material);
+		_update_uniforms(_buffer_material, p_flags);
 		// Snap to update buffer
 		_terrain->snap();
 	}
@@ -706,13 +881,13 @@ void Terrain3DMaterial::update(bool p_full) {
 
 void Terrain3DMaterial::set_displacement_scale(const real_t p_displacement_scale) {
 	SET_IF_DIFF(_displacement_scale, CLAMP(p_displacement_scale, 0.f, 2.f));
-	LOG(INFO, "Setting displacement scale: ", p_displacement_scale);
+	LOG(INFO, "Setting displacement scale: ", _displacement_scale);
 	update();
 }
 
 void Terrain3DMaterial::set_displacement_sharpness(const real_t p_displacement_sharpness) {
 	SET_IF_DIFF(_displacement_sharpness, CLAMP(p_displacement_sharpness, 0.f, 1.f));
-	LOG(INFO, "Setting displacement sharpness: ", p_displacement_sharpness);
+	LOG(INFO, "Setting displacement sharpness: ", _displacement_sharpness);
 	update();
 	if (_terrain) {
 		_terrain->snap();
@@ -721,31 +896,49 @@ void Terrain3DMaterial::set_displacement_sharpness(const real_t p_displacement_s
 
 void Terrain3DMaterial::set_world_background(const WorldBackground p_background) {
 	SET_IF_DIFF(_world_background, p_background);
-	LOG(INFO, "Enable world background: ", p_background);
+	LOG(INFO, "Enable world background: ", _world_background);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_texture_filtering(const TextureFiltering p_filtering) {
 	SET_IF_DIFF(_texture_filtering, p_filtering);
-	LOG(INFO, "Setting texture filtering: ", p_filtering);
+	LOG(INFO, "Setting texture filtering: ", _texture_filtering);
 	_update_shader();
 }
 
-void Terrain3DMaterial::set_auto_shader(const bool p_enabled) {
-	SET_IF_DIFF(_auto_shader, p_enabled);
-	LOG(INFO, "Enable auto shader: ", p_enabled);
+void Terrain3DMaterial::set_auto_shader_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_auto_shader_enabled, p_enabled);
+	LOG(INFO, "Enable auto shader: ", _auto_shader_enabled);
 	_update_shader();
 }
 
-void Terrain3DMaterial::set_dual_scaling(const bool p_enabled) {
-	SET_IF_DIFF(_dual_scaling, p_enabled);
-	LOG(INFO, "Enable dual scaling: ", p_enabled);
+void Terrain3DMaterial::set_dual_scaling_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_dual_scaling_enabled, p_enabled);
+	LOG(INFO, "Enable dual scaling: ", _dual_scaling_enabled);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_macro_variation_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_macro_variation_enabled, p_enabled);
+	LOG(INFO, "Enable macro variation: ", _macro_variation_enabled);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_projection_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_projection_enabled, p_enabled);
+	LOG(INFO, "Enable projection: ", _projection_enabled);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_max_regions(const RegionMaximum p_max) {
+	SET_IF_DIFF(_max_regions, RegionMaximum(CLAMP(closest_power_of_2(p_max), 64, 1024)));
+	LOG(INFO, "Set max region count: ", _max_regions);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_shader_override_enabled(const bool p_enabled) {
 	SET_IF_DIFF(_shader_override_enabled, p_enabled);
-	LOG(INFO, "Enable shader override: ", p_enabled);
+	LOG(INFO, "Enable shader override: ", _shader_override_enabled);
 	if (_shader_override_enabled && _shader_override.is_null()) {
 		LOG(DEBUG, "Instantiating new _shader_override");
 		_shader_override.instantiate();
@@ -761,7 +954,7 @@ void Terrain3DMaterial::set_shader_override(const Ref<Shader> &p_shader) {
 
 void Terrain3DMaterial::set_buffer_shader_override_enabled(const bool p_enabled) {
 	SET_IF_DIFF(_buffer_shader_override_enabled, p_enabled);
-	LOG(INFO, "Enable shader override: ", p_enabled);
+	LOG(INFO, "Enable shader override: ", _buffer_shader_override_enabled);
 	if (_buffer_shader_override_enabled && _buffer_shader_override.is_null()) {
 		LOG(DEBUG, "Instantiating new _shader_override");
 		_buffer_shader_override.instantiate();
@@ -776,145 +969,190 @@ void Terrain3DMaterial::set_buffer_shader_override(const Ref<Shader> &p_shader) 
 }
 
 void Terrain3DMaterial::set_shader_param(const StringName &p_name, const Variant &p_value) {
-	LOG(INFO, "Setting shader parameter: ", p_name);
-	_set(p_name, p_value);
+	LOG(INFO, "Setting shader parameter: ", p_name, " = ", p_value);
+	if (p_name.begins_with("_") && _material.is_valid()) {
+		RS->material_set_param(_material, p_name, p_value);
+	} else {
+		_set(p_name, p_value);
+	}
 }
 
 Variant Terrain3DMaterial::get_shader_param(const StringName &p_name) const {
 	LOG(INFO, "Getting shader parameter: ", p_name);
 	Variant value;
-	_get(p_name, value);
+	if (p_name.begins_with("_") && _material.is_valid()) {
+		value = RS->material_get_param(_material, p_name);
+	} else {
+		_get(p_name, value);
+	}
 	return value;
+}
+
+void Terrain3DMaterial::set_output_albedo_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_output_albedo_enabled, p_enabled);
+	LOG(INFO, "Enable PBR output albedo: ", _output_albedo_enabled);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_output_roughness_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_output_roughness_enabled, p_enabled);
+	LOG(INFO, "Enable PBR output roughness: ", _output_roughness_enabled);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_output_specular_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_output_specular_enabled, p_enabled);
+	LOG(INFO, "Enable PBR output specular: ", _output_specular_enabled);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_output_normal_map_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_output_normal_map_enabled, p_enabled);
+	LOG(INFO, "Enable PBR output normal map: ", _output_normal_map_enabled);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_output_ambient_occlusion_enabled(const bool p_enabled) {
+	SET_IF_DIFF(_output_ambient_occlusion_enabled, p_enabled);
+	LOG(INFO, "Enable PBR output ambient occlusion: ", _output_ambient_occlusion_enabled);
+	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_region_grid(const bool p_enabled) {
 	SET_IF_DIFF(_show_region_grid, p_enabled);
-	LOG(INFO, "Enable show_region_grid: ", p_enabled);
+	LOG(INFO, "Enable show_region_grid: ", _show_region_grid);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_instancer_grid(const bool p_enabled) {
 	SET_IF_DIFF(_show_instancer_grid, p_enabled);
-	LOG(INFO, "Enable show_instancer_grid: ", p_enabled);
+	LOG(INFO, "Enable show_instancer_grid: ", _show_instancer_grid);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_vertex_grid(const bool p_enabled) {
 	SET_IF_DIFF(_show_vertex_grid, p_enabled);
-	LOG(INFO, "Enable show_vertex_grid: ", p_enabled);
+	LOG(INFO, "Enable show_vertex_grid: ", _show_vertex_grid);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_contours(const bool p_enabled) {
 	SET_IF_DIFF(_show_contours, p_enabled);
-	LOG(INFO, "Enable show_contours: ", p_enabled);
+	LOG(INFO, "Enable show_contours: ", _show_contours);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_show_slope(const bool p_enabled) {
+	SET_IF_DIFF(_show_slope, p_enabled);
+	LOG(INFO, "Enable show_slope: ", _show_slope);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_navigation(const bool p_enabled) {
 	SET_IF_DIFF(_show_navigation, p_enabled);
-	LOG(INFO, "Enable show_navigation: ", p_enabled);
+	LOG(INFO, "Enable show_navigation: ", _show_navigation);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_checkered(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_checkered, p_enabled);
-	LOG(INFO, "Enable set_show_checkered: ", p_enabled);
+	LOG(INFO, "Enable set_show_checkered: ", _debug_view_checkered);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_grey(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_grey, p_enabled);
-	LOG(INFO, "Enable show_grey: ", p_enabled);
+	LOG(INFO, "Enable show_grey: ", _debug_view_grey);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_heightmap(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_heightmap, p_enabled);
-	LOG(INFO, "Enable show_heightmap: ", p_enabled);
+	LOG(INFO, "Enable show_heightmap: ", _debug_view_heightmap);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_jaggedness(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_jaggedness, p_enabled);
-	LOG(INFO, "Enable show_jaggedness: ", p_enabled);
+	LOG(INFO, "Enable show_jaggedness: ", _debug_view_jaggedness);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_autoshader(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_autoshader, p_enabled);
-	LOG(INFO, "Enable show_autoshader: ", p_enabled);
+	LOG(INFO, "Enable show_autoshader: ", _debug_view_autoshader);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_control_texture(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_control_texture, p_enabled);
-	LOG(INFO, "Enable show_control_texture: ", p_enabled);
+	LOG(INFO, "Enable show_control_texture: ", _debug_view_control_texture);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_control_blend(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_control_blend, p_enabled);
-	LOG(INFO, "Enable show_control_blend: ", p_enabled);
+	LOG(INFO, "Enable show_control_blend: ", _debug_view_control_blend);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_control_angle(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_control_angle, p_enabled);
-	LOG(INFO, "Enable show_control_angle: ", p_enabled);
+	LOG(INFO, "Enable show_control_angle: ", _debug_view_control_angle);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_control_scale(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_control_scale, p_enabled);
-	LOG(INFO, "Enable show_control_scale: ", p_enabled);
+	LOG(INFO, "Enable show_control_scale: ", _debug_view_control_scale);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_colormap(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_colormap, p_enabled);
-	LOG(INFO, "Enable show_colormap: ", p_enabled);
+	LOG(INFO, "Enable show_colormap: ", _debug_view_colormap);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_roughmap(const bool p_enabled) {
 	SET_IF_DIFF(_debug_view_roughmap, p_enabled);
-	LOG(INFO, "Enable show_roughmap: ", p_enabled);
+	LOG(INFO, "Enable show_roughmap: ", _debug_view_roughmap);
+	_update_shader();
+}
+
+void Terrain3DMaterial::set_show_displacement_buffer(const bool p_enabled) {
+	SET_IF_DIFF(_debug_view_displacement_buffer, p_enabled);
+	LOG(INFO, "Enable show_displacement_buffer: ", _debug_view_displacement_buffer);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_texture_albedo(const bool p_enabled) {
 	SET_IF_DIFF(_pbr_view_tex_albedo, p_enabled);
-	LOG(INFO, "Enable show_texture_albedo: ", p_enabled);
+	LOG(INFO, "Enable show_texture_albedo: ", _pbr_view_tex_albedo);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_texture_height(const bool p_enabled) {
 	SET_IF_DIFF(_pbr_view_tex_height, p_enabled);
-	LOG(INFO, "Enable show_texture_height: ", p_enabled);
+	LOG(INFO, "Enable show_texture_height: ", _pbr_view_tex_height);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_texture_normal(const bool p_enabled) {
 	SET_IF_DIFF(_pbr_view_tex_normal, p_enabled);
-	LOG(INFO, "Enable show_texture_normal: ", p_enabled);
+	LOG(INFO, "Enable show_texture_normal: ", _pbr_view_tex_normal);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_texture_rough(const bool p_enabled) {
 	SET_IF_DIFF(_pbr_view_tex_rough, p_enabled);
-	LOG(INFO, "Enable show_texture_rough: ", p_enabled);
-	_update_shader();
-}
-void Terrain3DMaterial::set_show_displacement_buffer(const bool p_enabled) {
-	LOG(INFO, "Enable show_texture_rough: ", p_enabled);
-	_debug_view_displacement_buffer = p_enabled;
+	LOG(INFO, "Enable show_texture_rough: ", _pbr_view_tex_rough);
 	_update_shader();
 }
 
 void Terrain3DMaterial::set_show_texture_ao(const bool p_enabled) {
 	SET_IF_DIFF(_pbr_view_tex_ao, p_enabled);
-	LOG(INFO, "Enable show_texture_ao: ", p_enabled);
+	LOG(INFO, "Enable show_texture_ao: ", _pbr_view_tex_ao);
 	_update_shader();
 }
 
@@ -1004,9 +1242,9 @@ void Terrain3DMaterial::_get_property_list(List<PropertyInfo> *p_list) const {
 		}
 	}
 
-	_active_params.clear();
+	TypedArray<StringName> new_active_params;
 	Dictionary grouped_params;
-	StringName current_group = StringName("General");
+	StringName current_group = StringName("shader_uniforms.general");
 	grouped_params[current_group] = Array();
 	for (int i = 0; i < param_list.size(); i++) {
 		Dictionary dict = param_list[i];
@@ -1014,7 +1252,7 @@ void Terrain3DMaterial::_get_property_list(List<PropertyInfo> *p_list) const {
 
 		// An empty name indicates a group being closed, reset to the "general" group.
 		if (name.is_empty() && i < buffer_param) {
-			current_group = StringName("General");
+			current_group = StringName("shader_uniforms.general");
 		}
 
 		// Filter out private uniforms that start with _ and nulls
@@ -1025,16 +1263,16 @@ void Terrain3DMaterial::_get_property_list(List<PropertyInfo> *p_list) const {
 				dict["name"] = split_name[MAX(split_name.size() - 1, 0)].capitalize();
 				// Ensure sub groups are batched with their parent group
 				current_group = split_name[0].capitalize();
-				dict["usage"] = (name.contains("::") ? PROPERTY_USAGE_SUBGROUP : PROPERTY_USAGE_GROUP) | PROPERTY_USAGE_EDITOR;
+				dict["usage"] = name.contains("::") ? PROPERTY_USAGE_SUBGROUP : PROPERTY_USAGE_GROUP;
 			} else {
 				// Filter out duplicate non-groups entries from displacement buffer shader
-				if (_active_params.has(name)) {
+				if (new_active_params.has(name)) {
 					continue;
 				}
 				dict["usage"] = PROPERTY_USAGE_EDITOR;
 			}
 			// Filter out extraneous parameters from the inspector if they are not present in the terrain shader.
-			if (i >= buffer_param && (!_active_params.has(name) && use != PROPERTY_USAGE_GROUP) && !current_group.contains("Displacement")) {
+			if (i >= buffer_param && (!new_active_params.has(name) && use != PROPERTY_USAGE_GROUP) && !current_group.contains("Displacement")) {
 				LOG(INFO, "Displacement buffer has active parameter: ", name, " not present in terrain shader.");
 				continue;
 			}
@@ -1050,7 +1288,7 @@ void Terrain3DMaterial::_get_property_list(List<PropertyInfo> *p_list) const {
 			grouped_params[current_group] = group;
 
 			// Populate list of public parameters for current shader
-			_active_params.push_back(name);
+			new_active_params.push_back(name);
 
 			// Store this param in a dictionary that is saved in the resource file
 			// Initially set with default value
@@ -1062,6 +1300,7 @@ void Terrain3DMaterial::_get_property_list(List<PropertyInfo> *p_list) const {
 			}
 		}
 	}
+	_active_params = new_active_params;
 
 	// Populate Godot's property list
 	Array keys = grouped_params.keys();
@@ -1136,12 +1375,14 @@ bool Terrain3DMaterial::_set(const StringName &p_name, const Variant &p_property
 // inspector, so be efficient
 bool Terrain3DMaterial::_get(const StringName &p_name, Variant &r_property) const {
 	IS_INIT_COND(!_active_params.has(p_name), Resource::_get(p_name, r_property));
-
 	r_property = RS->material_get_param(_material, p_name);
 	// Material server only has RIDs, but inspector needs objects for things like Textures
 	// So if its an RID, return the object
 	if (r_property.get_type() == Variant::RID && _shader_params.has(p_name)) {
 		r_property = _shader_params[p_name];
+	}
+	if (r_property.get_type() == Variant::NIL) {
+		r_property = RS->shader_get_parameter_default(get_shader_rid(), p_name);
 	}
 	return true;
 }
@@ -1150,8 +1391,20 @@ void Terrain3DMaterial::_bind_methods() {
 	BIND_ENUM_CONSTANT(NONE);
 	BIND_ENUM_CONSTANT(FLAT);
 	BIND_ENUM_CONSTANT(NOISE);
+	BIND_ENUM_CONSTANT(MAX_REGIONS_64);
+	BIND_ENUM_CONSTANT(MAX_REGIONS_128);
+	BIND_ENUM_CONSTANT(MAX_REGIONS_256);
+	BIND_ENUM_CONSTANT(MAX_REGIONS_512);
+	BIND_ENUM_CONSTANT(MAX_REGIONS_1024);
+	BIND_ENUM_CONSTANT(LINEAR_ANISOTROPIC);
 	BIND_ENUM_CONSTANT(LINEAR);
+	BIND_ENUM_CONSTANT(NEAREST_ANISOTROPIC);
 	BIND_ENUM_CONSTANT(NEAREST);
+	BIND_ENUM_CONSTANT(UNIFORMS_ONLY);
+	BIND_ENUM_CONSTANT(TEXTURE_ARRAYS);
+	BIND_ENUM_CONSTANT(REGION_ARRAYS);
+	BIND_ENUM_CONSTANT(UPDATE_ARRAYS);
+	BIND_ENUM_CONSTANT(FULL_REBUILD);
 
 	// Private
 	ClassDB::bind_method(D_METHOD("_set_shader_parameters", "dict"), &Terrain3DMaterial::_set_shader_parameters);
@@ -1159,7 +1412,7 @@ void Terrain3DMaterial::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::DICTIONARY, "_shader_parameters", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_STORAGE), "_set_shader_parameters", "_get_shader_parameters");
 
 	// Public
-	ClassDB::bind_method(D_METHOD("update", "full"), &Terrain3DMaterial::update, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("update", "flags"), &Terrain3DMaterial::update, DEFVAL(Terrain3DMaterial::UNIFORMS_ONLY));
 	ClassDB::bind_method(D_METHOD("get_material_rid"), &Terrain3DMaterial::get_material_rid);
 	ClassDB::bind_method(D_METHOD("get_shader_rid"), &Terrain3DMaterial::get_shader_rid);
 	ClassDB::bind_method(D_METHOD("get_buffer_material_rid"), &Terrain3DMaterial::get_buffer_material_rid);
@@ -1169,10 +1422,16 @@ void Terrain3DMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_world_background"), &Terrain3DMaterial::get_world_background);
 	ClassDB::bind_method(D_METHOD("set_texture_filtering", "filtering"), &Terrain3DMaterial::set_texture_filtering);
 	ClassDB::bind_method(D_METHOD("get_texture_filtering"), &Terrain3DMaterial::get_texture_filtering);
-	ClassDB::bind_method(D_METHOD("set_auto_shader", "enabled"), &Terrain3DMaterial::set_auto_shader);
-	ClassDB::bind_method(D_METHOD("get_auto_shader"), &Terrain3DMaterial::get_auto_shader);
-	ClassDB::bind_method(D_METHOD("set_dual_scaling", "enabled"), &Terrain3DMaterial::set_dual_scaling);
-	ClassDB::bind_method(D_METHOD("get_dual_scaling"), &Terrain3DMaterial::get_dual_scaling);
+	ClassDB::bind_method(D_METHOD("set_auto_shader_enabled", "enabled"), &Terrain3DMaterial::set_auto_shader_enabled);
+	ClassDB::bind_method(D_METHOD("get_auto_shader_enabled"), &Terrain3DMaterial::get_auto_shader_enabled);
+	ClassDB::bind_method(D_METHOD("set_dual_scaling_enabled", "enabled"), &Terrain3DMaterial::set_dual_scaling_enabled);
+	ClassDB::bind_method(D_METHOD("get_dual_scaling_enabled"), &Terrain3DMaterial::get_dual_scaling_enabled);
+	ClassDB::bind_method(D_METHOD("set_macro_variation_enabled", "enabled"), &Terrain3DMaterial::set_macro_variation_enabled);
+	ClassDB::bind_method(D_METHOD("get_macro_variation_enabled"), &Terrain3DMaterial::get_macro_variation_enabled);
+	ClassDB::bind_method(D_METHOD("set_projection_enabled", "enabled"), &Terrain3DMaterial::set_projection_enabled);
+	ClassDB::bind_method(D_METHOD("get_projection_enabled"), &Terrain3DMaterial::get_projection_enabled);
+	ClassDB::bind_method(D_METHOD("set_max_regions", "count"), &Terrain3DMaterial::set_max_regions);
+	ClassDB::bind_method(D_METHOD("get_max_regions"), &Terrain3DMaterial::get_max_regions);
 
 	ClassDB::bind_method(D_METHOD("set_shader_override_enabled", "enabled"), &Terrain3DMaterial::set_shader_override_enabled);
 	ClassDB::bind_method(D_METHOD("is_shader_override_enabled"), &Terrain3DMaterial::is_shader_override_enabled);
@@ -1191,6 +1450,18 @@ void Terrain3DMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_shader_param", "name", "value"), &Terrain3DMaterial::set_shader_param);
 	ClassDB::bind_method(D_METHOD("get_shader_param", "name"), &Terrain3DMaterial::get_shader_param);
 
+	// PBR Material Output
+	ClassDB::bind_method(D_METHOD("set_output_albedo_enabled", "enabled"), &Terrain3DMaterial::set_output_albedo_enabled);
+	ClassDB::bind_method(D_METHOD("get_output_albedo_enabled"), &Terrain3DMaterial::get_output_albedo_enabled);
+	ClassDB::bind_method(D_METHOD("set_output_roughness_enabled", "enabled"), &Terrain3DMaterial::set_output_roughness_enabled);
+	ClassDB::bind_method(D_METHOD("get_output_roughness_enabled"), &Terrain3DMaterial::get_output_roughness_enabled);
+	ClassDB::bind_method(D_METHOD("set_output_specular_enabled", "enabled"), &Terrain3DMaterial::set_output_specular_enabled);
+	ClassDB::bind_method(D_METHOD("get_output_specular_enabled"), &Terrain3DMaterial::get_output_specular_enabled);
+	ClassDB::bind_method(D_METHOD("set_output_normal_map_enabled", "enabled"), &Terrain3DMaterial::set_output_normal_map_enabled);
+	ClassDB::bind_method(D_METHOD("get_output_normal_map_enabled"), &Terrain3DMaterial::get_output_normal_map_enabled);
+	ClassDB::bind_method(D_METHOD("set_output_ambient_occlusion_enabled", "enabled"), &Terrain3DMaterial::set_output_ambient_occlusion_enabled);
+	ClassDB::bind_method(D_METHOD("get_output_ambient_occlusion_enabled"), &Terrain3DMaterial::get_output_ambient_occlusion_enabled);
+
 	// Overlays
 	ClassDB::bind_method(D_METHOD("set_show_region_grid", "enabled"), &Terrain3DMaterial::set_show_region_grid);
 	ClassDB::bind_method(D_METHOD("get_show_region_grid"), &Terrain3DMaterial::get_show_region_grid);
@@ -1200,6 +1471,8 @@ void Terrain3DMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_show_vertex_grid"), &Terrain3DMaterial::get_show_vertex_grid);
 	ClassDB::bind_method(D_METHOD("set_show_contours", "enabled"), &Terrain3DMaterial::set_show_contours);
 	ClassDB::bind_method(D_METHOD("get_show_contours"), &Terrain3DMaterial::get_show_contours);
+	ClassDB::bind_method(D_METHOD("set_show_slope", "enabled"), &Terrain3DMaterial::set_show_slope);
+	ClassDB::bind_method(D_METHOD("get_show_slope"), &Terrain3DMaterial::get_show_slope);
 	ClassDB::bind_method(D_METHOD("set_show_navigation", "enabled"), &Terrain3DMaterial::set_show_navigation);
 	ClassDB::bind_method(D_METHOD("get_show_navigation"), &Terrain3DMaterial::get_show_navigation);
 
@@ -1226,28 +1499,40 @@ void Terrain3DMaterial::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_show_colormap"), &Terrain3DMaterial::get_show_colormap);
 	ClassDB::bind_method(D_METHOD("set_show_roughmap", "enabled"), &Terrain3DMaterial::set_show_roughmap);
 	ClassDB::bind_method(D_METHOD("get_show_roughmap"), &Terrain3DMaterial::get_show_roughmap);
+	ClassDB::bind_method(D_METHOD("set_show_displacement_buffer", "enabled"), &Terrain3DMaterial::set_show_displacement_buffer);
+	ClassDB::bind_method(D_METHOD("get_show_displacement_buffer"), &Terrain3DMaterial::get_show_displacement_buffer);
 
-	// PBR Views
+	// PBR Debug Views
 	ClassDB::bind_method(D_METHOD("set_show_texture_albedo", "enabled"), &Terrain3DMaterial::set_show_texture_albedo);
 	ClassDB::bind_method(D_METHOD("get_show_texture_albedo"), &Terrain3DMaterial::get_show_texture_albedo);
 	ClassDB::bind_method(D_METHOD("set_show_texture_height", "enabled"), &Terrain3DMaterial::set_show_texture_height);
 	ClassDB::bind_method(D_METHOD("get_show_texture_height"), &Terrain3DMaterial::get_show_texture_height);
 	ClassDB::bind_method(D_METHOD("set_show_texture_normal", "enabled"), &Terrain3DMaterial::set_show_texture_normal);
 	ClassDB::bind_method(D_METHOD("get_show_texture_normal"), &Terrain3DMaterial::get_show_texture_normal);
-	ClassDB::bind_method(D_METHOD("set_show_texture_ao", "enabled"), &Terrain3DMaterial::set_show_texture_ao);
-	ClassDB::bind_method(D_METHOD("get_show_texture_ao"), &Terrain3DMaterial::get_show_texture_ao);
 	ClassDB::bind_method(D_METHOD("set_show_texture_rough", "enabled"), &Terrain3DMaterial::set_show_texture_rough);
 	ClassDB::bind_method(D_METHOD("get_show_texture_rough"), &Terrain3DMaterial::get_show_texture_rough);
-	ClassDB::bind_method(D_METHOD("set_show_displacement_buffer", "enabled"), &Terrain3DMaterial::set_show_displacement_buffer);
-	ClassDB::bind_method(D_METHOD("get_show_displacement_buffer"), &Terrain3DMaterial::get_show_displacement_buffer);
+	ClassDB::bind_method(D_METHOD("set_show_texture_ao", "enabled"), &Terrain3DMaterial::set_show_texture_ao);
+	ClassDB::bind_method(D_METHOD("get_show_texture_ao"), &Terrain3DMaterial::get_show_texture_ao);
 
 	ClassDB::bind_method(D_METHOD("save", "path"), &Terrain3DMaterial::save, DEFVAL(""));
 
 	// These must be different from the names of uniform groups
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "world_background", PROPERTY_HINT_ENUM, "None,Flat,Noise"), "set_world_background", "get_world_background");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "texture_filtering", PROPERTY_HINT_ENUM, "Linear,Nearest"), "set_texture_filtering", "get_texture_filtering");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "auto_shader_enabled"), "set_auto_shader", "get_auto_shader");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "dual_scaling_enabled"), "set_dual_scaling", "get_dual_scaling");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "texture_filtering", PROPERTY_HINT_ENUM, "Linear Anisotropic,Linear,Nearest Anisotropic,Nearest"), "set_texture_filtering", "get_texture_filtering");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "auto_shader_enabled"), "set_auto_shader_enabled", "get_auto_shader_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "dual_scaling_enabled"), "set_dual_scaling_enabled", "get_dual_scaling_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "macro_variation_enabled"), "set_macro_variation_enabled", "get_macro_variation_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "projection_enabled"), "set_projection_enabled", "get_projection_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_regions", PROPERTY_HINT_ENUM, "64:64,128:128,256:256,512:512,1024:1024"), "set_max_regions", "get_max_regions");
+
+	ADD_GROUP("PBR Output", "output_");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "output_albedo"), "set_output_albedo_enabled", "get_output_albedo_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "output_roughness"), "set_output_roughness_enabled", "get_output_roughness_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "output_specular"), "set_output_specular_enabled", "get_output_specular_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "output_normal_map"), "set_output_normal_map_enabled", "get_output_normal_map_enabled");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "output_ambient_occlusion"), "set_output_ambient_occlusion_enabled", "get_output_ambient_occlusion_enabled");
+
+	ADD_GROUP("Custom Shader", "");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "shader_override_enabled"), "set_shader_override_enabled", "is_shader_override_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "shader_override", PROPERTY_HINT_RESOURCE_TYPE, "Shader"), "set_shader_override", "get_shader_override");
 
@@ -1257,14 +1542,17 @@ void Terrain3DMaterial::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_instancer_grid", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_instancer_grid", "get_show_instancer_grid");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_vertex_grid", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_vertex_grid", "get_show_vertex_grid");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_contours", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_contours", "get_show_contours");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_slope", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_slope", "get_show_slope");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_navigation", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_navigation", "get_show_navigation");
 
-	// Hidden in Material, aliased in Terrain3D
+	// Below here properties are hidden in Material, aliased in Terrain3D
+
 	// Displacement settings
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "displacement_scale", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_displacement_scale", "get_displacement_scale");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "displacement_sharpness", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_displacement_sharpness", "get_displacement_sharpness");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "buffer_shader_override_enabled", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_buffer_shader_override_enabled", "is_buffer_shader_override_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "buffer_shader_override", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_buffer_shader_override", "get_buffer_shader_override");
+
 	//ADD_GROUP("Debug Views", "show_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_checkered", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_checkered", "get_show_checkered");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_grey", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_grey", "get_show_grey");
@@ -1277,13 +1565,12 @@ void Terrain3DMaterial::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_control_scale", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_control_scale", "get_show_control_scale");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_colormap", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_colormap", "get_show_colormap");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_roughmap", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_roughmap", "get_show_roughmap");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_displacement_buffer", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_displacement_buffer", "get_show_displacement_buffer");
 
-	// Hidden in Material, aliased in Terrain3D
 	//ADD_SUBGROUP("PBR Views", "show_");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_texture_albedo", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_texture_albedo", "get_show_texture_albedo");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_texture_height", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_texture_height", "get_show_texture_height");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_texture_normal", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_texture_normal", "get_show_texture_normal");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_texture_ao", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_texture_ao", "get_show_texture_ao");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_texture_rough", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_texture_rough", "get_show_texture_rough");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_displacement_buffer", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_displacement_buffer", "get_show_displacement_buffer");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_texture_ao", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NO_EDITOR), "set_show_texture_ao", "get_show_texture_ao");
 }

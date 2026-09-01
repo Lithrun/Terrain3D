@@ -81,6 +81,9 @@
     <ClInclude Include="src\unit_testing.h">
       <Filter>5. Headers</Filter>
     </ClInclude>
+    <ClInclude Include=".github\actions\build-artifact\action.yml">
+      <Filter>5. Headers</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\terrain_3d_mesher.cpp">
@@ -130,10 +133,7 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include=".github\actions\build-cache\action.yml">
-      <Filter>1. Project Files</Filter>
-    </None>
-    <None Include=".github\actions\base-deps\action.yml">
+    <None Include=".github\actions\dependencies\action.yml">
       <Filter>1. Project Files</Filter>
     </None>
     <None Include=".github\workflows\android.yml">
@@ -173,9 +173,6 @@
       <Filter>1. Project Files</Filter>
     </None>
     <None Include="README.md">
-      <Filter>2. Docs</Filter>
-    </None>
-    <None Include="CONTRIBUTING.md">
       <Filter>2. Docs</Filter>
     </None>
     <None Include="AUTHORS.md">
@@ -283,6 +280,30 @@
     <None Include="doc\docs\displacement.md">
       <Filter>2. Docs</Filter>
     </None>
+    <None Include="src\shaders\macro_variation.glsl">
+      <Filter>4. Shaders</Filter>
+    </None>
+    <None Include="src\shaders\projection.glsl">
+      <Filter>4. Shaders</Filter>
+    </None>
+    <None Include="doc\build_docs.sh">
+      <Filter>1. Project Files</Filter>
+    </None>
+    <None Include="project\addons\terrain_3d\extras\shaders\ocean_shader.gdshader">
+      <Filter>4. Shaders</Filter>
+    </None>
+    <None Include="doc\docs\maintainers.md">
+      <Filter>2. Docs</Filter>
+    </None>
+    <None Include="doc\docs\contributing.md">
+      <Filter>2. Docs</Filter>
+    </None>
+    <None Include="src\shaders\max_regions.glsl">
+      <Filter>4. Shaders</Filter>
+    </None>
+    <None Include=".github\actions\load-cache\action.yml">
+      <Filter>1. Project Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Text Include=".readthedocs.yaml">
@@ -336,7 +357,7 @@
     <Text Include="src\shaders\gpu_depth.glsl">
       <Filter>4. Shaders</Filter>
     </Text>
-    <Text Include="doc\_new_release_process.txt">
+    <Text Include="doc\requirements.txt">
       <Filter>1. Project Files</Filter>
     </Text>
   </ItemGroup>

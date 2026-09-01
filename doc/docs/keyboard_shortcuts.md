@@ -29,9 +29,10 @@ The following mouse and keyboard shortcuts or hotkeys are available.
 These toggle the Overlays found in the inspector. The mouse must be in the 3D Viewport with Terrain3D selected for these to work. 
 
 * <kbd>1</kbd> - Toggle **Region Grid**.
-* <kbd>2</kbd> - Toggle **Instancer Grid**.
-* <kbd>3</kbd> - Toggle **Vertex Grid**.
-* <kbd>4</kbd> - Toggle **Contour Lines**. Customize in the material when enabled.
+* <kbd>2</kbd> - Toggle **Region Label Distance** between 0 and 4096.
+* <kbd>3</kbd> - Toggle **Contour Lines**. Customize in the material when enabled.
+* <kbd>4</kbd> - Toggle **Slope Colorizer**. Customize in the material when enabled.
+* <kbd>5</kbd> - Toggle **Vertex Grid**.
 
 
 ## Tool Selection
@@ -51,6 +52,11 @@ The mouse must be in the 3D Viewport with Terrain3D selected for these to work.
 * <kbd>X</kbd> - Paint **Holes**.
 * <kbd>I</kbd> - Add mesh **Instances**.
 
+## Tool Settings
+* <kbd>[</kbd> - Reduce **Brush Size**.
+* <kbd>]</kbd> - Increase **Brush Size**.
+* <kbd>-</kbd> - Reduce **Brush Strength**.
+* <kbd>=</kbd> - Increase **Brush Strength**.
 
 ## Tool Specific Keys
 

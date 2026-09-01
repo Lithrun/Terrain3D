@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/classes/height_map_shape3d.hpp>
@@ -22,43 +22,20 @@
 Dictionary Terrain3DCollision::_get_shape_data(const Vector2i &p_position, const int p_size) {
 	IS_DATA_INIT_MESG("Terrain not initialized", Dictionary());
 	const Terrain3DData *data = _terrain->get_data();
-	int region_size = _terrain->get_region_size();
-
-	int hshape_size = p_size + 1; // Calculate last vertex at end
-	PackedRealArray map_data = PackedRealArray();
-	map_data.resize(hshape_size * hshape_size);
-	real_t min_height = FLT_MAX;
-	real_t max_height = FLT_MIN;
-
-	Ref<Image> map, map_x, map_z, map_xz; // height maps
-	Ref<Image> cmap, cmap_x, cmap_z, cmap_xz; // control maps w/ holes
 
 	// Get region_loc of top left corner of descaled and grid snapped collision shape position
-	Vector2i region_loc = V2I_DIVIDE_FLOOR(p_position, region_size);
+	Vector2i region_loc = V2I_DIVIDE_FLOOR(p_position, _terrain->get_region_size());
 	const Terrain3DRegion *region = data->get_region_ptr(region_loc);
 	if (!region || region->is_deleted()) {
 		LOG(EXTREME, "Region not found at: ", region_loc, ". Returning blank");
 		return Dictionary();
 	}
-	map = region->get_map(TYPE_HEIGHT);
-	cmap = region->get_map(TYPE_CONTROL);
 
-	// Get +X, +Z adjacent regions in case we run over
-	region = data->get_region_ptr(region_loc + Vector2i(1, 0));
-	if (region && !region->is_deleted()) {
-		map_x = region->get_map(TYPE_HEIGHT);
-		cmap_x = region->get_map(TYPE_CONTROL);
-	}
-	region = data->get_region_ptr(region_loc + Vector2i(0, 1));
-	if (region && !region->is_deleted()) {
-		map_z = region->get_map(TYPE_HEIGHT);
-		cmap_z = region->get_map(TYPE_CONTROL);
-	}
-	region = data->get_region_ptr(region_loc + Vector2i(1, 1));
-	if (region && !region->is_deleted()) {
-		map_xz = region->get_map(TYPE_HEIGHT);
-		cmap_xz = region->get_map(TYPE_CONTROL);
-	}
+	int hshape_size = p_size + 1; // Calculate last vertex at end
+	PackedRealArray map_data = PackedRealArray();
+	map_data.resize(hshape_size * hshape_size);
+	real_t min_height = FLT_MAX;
+	real_t max_height = -FLT_MAX;
 
 	for (int z = 0; z < hshape_size; z++) {
 		for (int x = 0; x < hshape_size; x++) {
@@ -68,37 +45,7 @@ Dictionary Terrain3DCollision::_get_shape_data(const Vector2i &p_position, const
 			// int index = z * hshape_size + x;
 			// Array Index Rotated Y=-90 - must rotate shape Y=+90 (xform below)
 			int index = hshape_size - 1 - z + x * hshape_size;
-
-			Vector2i shape_pos = p_position + Vector2i(x, z);
-			Vector2i shape_region_loc = V2I_DIVIDE_FLOOR(shape_pos, region_size);
-			int img_x = Math::posmod(shape_pos.x, region_size);
-			bool next_x = shape_region_loc.x > region_loc.x;
-			int img_y = Math::posmod(shape_pos.y, region_size);
-			bool next_z = shape_region_loc.y > region_loc.y;
-
-			// Set heights on local map, or adjacent maps if on the last row/col
-			real_t height = 0.f;
-			if (!next_x && !next_z && map.is_valid()) {
-				height = is_hole(cmap->get_pixel(img_x, img_y).r) ? NAN : map->get_pixel(img_x, img_y).r;
-			} else if (next_x && !next_z) {
-				if (map_x.is_valid()) {
-					height = is_hole(cmap_x->get_pixel(img_x, img_y).r) ? NAN : map_x->get_pixel(img_x, img_y).r;
-				} else {
-					height = is_hole(cmap->get_pixel(region_size - 1, img_y).r) ? NAN : map->get_pixel(region_size - 1, img_y).r;
-				}
-			} else if (!next_x && next_z) {
-				if (map_z.is_valid()) {
-					height = is_hole(cmap_z->get_pixel(img_x, img_y).r) ? NAN : map_z->get_pixel(img_x, img_y).r;
-				} else {
-					height = (is_hole(cmap->get_pixel(img_x, region_size - 1).r)) ? NAN : map->get_pixel(img_x, region_size - 1).r;
-				}
-			} else if (next_x && next_z) {
-				if (map_xz.is_valid()) {
-					height = is_hole(cmap_xz->get_pixel(img_x, img_y).r) ? NAN : map_xz->get_pixel(img_x, img_y).r;
-				} else {
-					height = (is_hole(cmap->get_pixel(region_size - 1, region_size - 1).r)) ? NAN : map->get_pixel(region_size - 1, region_size - 1).r;
-				}
-			}
+			real_t height = data->get_modified_height(p_position + Vector2i(x, z));
 			map_data[index] = height;
 			if (!std::isnan(height)) {
 				min_height = MIN(min_height, height);
@@ -142,8 +89,7 @@ void Terrain3DCollision::_shape_set_transform(const int p_shape_id, const Transf
 
 Vector3 Terrain3DCollision::_shape_get_position(const int p_shape_id) const {
 	if (is_editor_mode()) {
-		CollisionShape3D *shape = _shapes[p_shape_id];
-		return shape->get_global_position();
+		return _shapes[p_shape_id]->get_global_position();
 	} else {
 		return PS->body_get_shape_transform(_static_body_rid, p_shape_id).origin;
 	}
@@ -284,7 +230,7 @@ void Terrain3DCollision::build() {
 	update();
 }
 
-void Terrain3DCollision::update(const bool p_rebuild) {
+void Terrain3DCollision::update(const Vector2i &p_region_loc, const bool p_rebuild) {
 	IS_INIT(VOID);
 	if (!_initialized) {
 		return;
@@ -301,8 +247,8 @@ void Terrain3DCollision::update(const bool p_rebuild) {
 		Vector2i snapped_pos = _snap_to_grid(_terrain->get_collision_target_position() / spacing);
 		LOG(EXTREME, "Updating collision at ", snapped_pos);
 
-		// Skip if location hasn't moved to next step
-		if (!p_rebuild && (_last_snapped_pos - snapped_pos).length_squared() < (_shape_size * _shape_size)) {
+		// Return if target hasn't moved to next grid slot
+		if (!p_rebuild && (_last_snapped_pos - snapped_pos).length_squared() == 0) {
 			return;
 		}
 
@@ -314,12 +260,11 @@ void Terrain3DCollision::update(const bool p_rebuild) {
 		grid.resize(grid_width * grid_width);
 		grid.fill(-1);
 		Vector2i grid_offset = -V2I(grid_width / 2); // offset # cells to center of grid
-		Vector2i shape_offset = V2I(_shape_size / 2); // offset meters to top left corner of shape
-		Vector2i grid_pos = snapped_pos + grid_offset * _shape_size; // Top left of grid
-		LOG(EXTREME, "New Snapped position: ", snapped_pos);
-		LOG(EXTREME, "Grid_pos: ", grid_pos);
-		LOG(EXTREME, "Radius: ", _radius, ", Grid_width: ", grid_width, ", Grid_offset: ", grid_offset, ", # cells: ", grid.size());
-		LOG(EXTREME, "Shape_size: ", _shape_size, ", shape_offset: ", shape_offset);
+		Vector2i grid_corner = snapped_pos + grid_offset * _shape_size; // Top left of grid
+		LOG(EXTREME, "New snapped_pos: ", snapped_pos);
+		LOG(EXTREME, "grid_corner: ", grid_corner);
+		LOG(EXTREME, "radius: ", _radius, ", grid_width: ", grid_width, ", grid_offset: ", grid_offset, ", # cells: ", grid.size());
+		LOG(EXTREME, "shape_size: ", _shape_size);
 
 		LOG(EXTREME, "---- 2. Checking existing shapes ----");
 		// If shape is within area, skip
@@ -329,26 +274,38 @@ void Terrain3DCollision::update(const bool p_rebuild) {
 		TypedArray<int> inactive_shape_ids;
 
 		real_t radius_sqr = real_t(_radius * _radius);
+		Vector2i shape_offset = V2I(_shape_size / 2); // offset meters to top left corner of shape
 		int shape_count = is_editor_mode() ? _shapes.size() : PS->body_get_shape_count(_static_body_rid);
 		for (int i = 0; i < shape_count; i++) {
-			// Descaled global position of shape center
-			Vector3 shape_center = _shape_get_position(i) / spacing;
-			// Unique key: Top left corner of shape, snapped to grid
-			Vector2i shape_pos = _snap_to_grid(v3v2i(shape_center) - shape_offset);
-			// Optionally could adjust radius to account for corner (sqrt(_shape_size*2))
-			if (!p_rebuild && (shape_center.x < FLT_MAX && v3v2i(shape_center).distance_squared_to(snapped_pos) <= radius_sqr)) {
-				// Get index into shape array
-				Vector2i grid_loc = (shape_pos - grid_pos) / _shape_size;
-				grid[grid_loc.y * grid_width + grid_loc.x] = i;
-				_shape_set_disabled(i, false);
-				LOG(EXTREME, "Shape ", i, ": shape_center: ", shape_center.x < FLT_MAX ? shape_center : V3(-999), ", shape_pos: ", shape_pos,
-						", grid_loc: ", grid_loc, ", index: ", (grid_loc.y * grid_width + grid_loc.x), " active");
-			} else {
+			Vector3 shape_global_pos = _shape_get_position(i);
+			if (p_rebuild || shape_global_pos.x > 1e20f) {
 				inactive_shape_ids.push_back(i);
 				_shape_set_disabled(i, true);
-				LOG(EXTREME, "Shape ", i, ": shape_center: ", shape_center.x < FLT_MAX ? shape_center : V3(-999), ", shape_pos: ", shape_pos,
-						" out of bounds, marking inactive");
+				LOG(EXTREME, "Shape ", i, " marked inactive (rebuild or out of bounds)");
+				continue;
 			}
+
+			// Descale global position of shape center
+			Vector3 shape_center = shape_global_pos / spacing;
+			// Unique key: Top left corner of shape, snapped to grid
+			Vector2i shape_pos = _snap_to_grid(v3v2i(shape_center) - shape_offset);
+			if (v3v2i(shape_center).distance_squared_to(snapped_pos) <= radius_sqr) {
+				// Get index into shape array
+				Vector2i grid_loc = (shape_pos - grid_corner) / _shape_size;
+				int idx = grid_loc.y * grid_width + grid_loc.x;
+				if (idx >= 0 && idx < grid.size()) {
+					grid[idx] = i;
+					_shape_set_disabled(i, false);
+					LOG(EXTREME, "Shape ", i, ": shape_center: ", shape_center, ", shape_pos: ", shape_pos, ", grid_loc: ",
+							grid_loc, ", index: ", idx, " active");
+					continue;
+				}
+			}
+
+			inactive_shape_ids.push_back(i);
+			_shape_set_disabled(i, true);
+			LOG(EXTREME, "Shape ", i, ": shape_center: ", shape_center, ", shape_pos: ", shape_pos,
+					" out of bounds, marking inactive");
 		}
 		LOG(EXTREME, "_inactive_shapes size: ", inactive_shape_ids.size());
 
@@ -358,35 +315,34 @@ void Terrain3DCollision::update(const bool p_rebuild) {
 
 		for (int i = 0; i < grid.size(); i++) {
 			Vector2i grid_loc(i % grid_width, i / grid_width);
-			// Unique key: Top left corner of shape, snapped to grid
-			Vector2i shape_pos = grid_pos + grid_loc * _shape_size;
+			if (!p_rebuild && grid[i] >= 0) {
+				LOG(EXTREME, "grid[", i, ":", grid_loc, "] already active, skipping");
+				continue;
+			}
 
-			if ((shape_pos + shape_offset).distance_squared_to(snapped_pos) > radius_sqr) {
+			// Unique key: Top left corner of shape, snapped to grid
+			Vector2i shape_pos = grid_corner + grid_loc * _shape_size;
+			Vector2i shape_center = shape_pos + shape_offset;
+			if (shape_center.distance_squared_to(snapped_pos) > radius_sqr) {
 				LOG(EXTREME, "grid[", i, ":", grid_loc, "] shape_pos : ", shape_pos, " out of circle, skipping");
 				continue;
 			}
-			if (!p_rebuild && grid[i] >= 0) {
-				Vector2i center_pos = v3v2i(_shape_get_position(i));
-				LOG(EXTREME, "grid[", i, ":", grid_loc, "] shape_pos : ", shape_pos, " act ", center_pos - shape_offset, " Has active shape id: ", grid[i]);
-				continue;
-			} else {
-				if (inactive_shape_ids.size() == 0) {
-					LOG(ERROR, "No more unused shapes! Aborting!");
-					break;
-				}
-				Dictionary shape_data = _get_shape_data(shape_pos, _shape_size);
-				if (shape_data.is_empty()) {
-					LOG(EXTREME, "grid[", i, ":", grid_loc, "] shape_pos : ", shape_pos, " No region found");
-					continue;
-				}
-				int shape_id = inactive_shape_ids.pop_back();
-				Transform3D xform = shape_data["xform"];
-				LOG(EXTREME, "grid[", i, ":", grid_loc, "] shape_pos : ", shape_pos, " act ", v3v2i(xform.origin) - shape_offset, " placing shape id ", shape_id);
-				xform.scale(Vector3(spacing, 1.f, spacing));
-				_shape_set_transform(shape_id, xform);
-				_shape_set_disabled(shape_id, false);
-				_shape_set_data(shape_id, shape_data);
+			if (inactive_shape_ids.size() == 0) {
+				LOG(ERROR, "No more unused shapes! Aborting!");
+				break;
 			}
+			Dictionary shape_data = _get_shape_data(shape_pos, _shape_size);
+			if (shape_data.is_empty()) {
+				LOG(EXTREME, "grid[", i, ":", grid_loc, "] shape_pos : ", shape_pos, " No region found");
+				continue;
+			}
+			int shape_id = inactive_shape_ids.pop_back();
+			Transform3D xform = shape_data["xform"];
+			LOG(EXTREME, "grid[", i, ":", grid_loc, "] shape_pos : ", shape_pos, " act ", v3v2i(xform.origin) - shape_offset, " placing shape id ", shape_id);
+			xform.scale(Vector3(spacing, 1.f, spacing));
+			_shape_set_transform(shape_id, xform);
+			_shape_set_disabled(shape_id, false);
+			_shape_set_data(shape_id, shape_data);
 		}
 		_last_snapped_pos = snapped_pos;
 		LOG(EXTREME, "Setting _last_snapped_pos: ", _last_snapped_pos);
@@ -399,6 +355,9 @@ void Terrain3DCollision::update(const bool p_rebuild) {
 		TypedArray<Vector2i> region_locs = _terrain->get_data()->get_region_locations();
 		for (int i = 0; i < region_locs.size(); i++) {
 			Vector2i region_loc = region_locs[i];
+			if (p_region_loc != V2I_MAX && region_loc != p_region_loc) {
+				continue;
+			}
 			Vector2i shape_pos = region_loc * region_size;
 			Dictionary shape_data = _get_shape_data(shape_pos, region_size);
 			if (shape_data.is_empty()) {
@@ -570,7 +529,7 @@ void Terrain3DCollision::_bind_methods() {
 	BIND_ENUM_CONSTANT(FULL_EDITOR);
 
 	ClassDB::bind_method(D_METHOD("build"), &Terrain3DCollision::build);
-	ClassDB::bind_method(D_METHOD("update", "rebuild"), &Terrain3DCollision::update, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("update", "region_location", "rebuild"), &Terrain3DCollision::update, DEFVAL(V2I_MAX), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("destroy"), &Terrain3DCollision::destroy);
 	ClassDB::bind_method(D_METHOD("set_mode", "mode"), &Terrain3DCollision::set_mode);
 	ClassDB::bind_method(D_METHOD("get_mode"), &Terrain3DCollision::get_mode);

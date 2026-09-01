@@ -31,6 +31,29 @@ After selecting the Terrain3D node, the Terrain3D menu appears at the top of the
 :target: ../_images/terrain3d_menu.png
 ```
 
+### Live Info Panel
+
+The Live Info Panel can be enabled from the Terrain3D menu. When active, it displays real‑time information about the terrain under your mouse cursor, at the center of your brush, including:
+
+* X, Z mouse position on the terrain
+* Height (surface)
+* Slope angle
+* Texture data:
+  * Base texture index
+  * Overlay texture index
+  * Blend value
+  * Whether Autoshader is active
+
+```{image} images/ui_live_info_panel.png
+:target: ../_images/ui_live_info_panel.png
+```
+
+Height may show two values: The first is the actual height stored in the region data. The second might appear in parentheses. Inside of regions this number is the value from `Terrain3DData.get_surface_height()` and represents the rendered height used by collision, navigation baking, and instancer placement. It is modified by the `ground_level` and `region_blend` uniforms from the material and interpolates adjacent vertices. Outside of regions, this number comes from `Terrain3D.get_intersection()` and uses the GPU to snapshot where the mesh is.
+
+Slope is derived from `Terrain3DData.get_normal()`.
+
+Texture data is read from `Terrain3DData.get_texture_id()`.
+
 ---
 
 ## Tool Settings Bar
@@ -41,6 +64,8 @@ Depending on which tool is selected on the toolbar, various tool settings will a
 :target: ../_images/ui_tool_settings.jpg
 ```
 
+Brushes can be changed via the Terrain3D Menu / `Open Brushes Directory...`. The folder is hidden to Godot. The files are 100x100 alpha masks saved as EXR. Larger sizes should work fine, but will be slow if too big. We scale all brushes up to a minimum of 1024px on selection.
+
 Many tool settings offer a slider with a fixed range, and an input box where you can manually enter a much larger setting.
 
 Click the label of any setting to reset the value to its default, or checkboxes to toggle.
@@ -50,8 +75,6 @@ The settings are saved across sessions in `Editor Settings / Terrain3D / Tool Se
 Some tools like `Paint`, `Spray`, and `Color` have options to disable some features. e.g. Disabling `Texture` on `Paint` means it will only apply scale or angle. Enabling `Texture` on `Color` will filter color painting to the selected texture.
 
 The three dots button on the right is the advanced options menu. One noteworthy setting is `Brush Spin Speed`, which is what causes the brush to spin while painting. Reduce it to zero if you don't want this.
-
-Brushes can be edited in the `addons/terrain_3d/brushes` directory, using your OS folder explorer. The folder is hidden to Godot. The files are 100x100 alpha masks saved as EXR. Larger sizes should work fine, but will be slow if too big. We scale all brushes up to a minimum of 1024px on selection.
 
 Most other options are self explanatory. See [Foliage Instancing](instancer.md) for specific details on its settings.
 
@@ -111,6 +134,3 @@ You can read more about mesh setup on the [Foliage Instancer page](instancer.md#
 * <kbd>LMB</kbd> - Select the asset to paint with.
 * <kbd>RMB</kbd> - Edit the asset in the inspector. You can also click the pencil on the thumbnail.
 * <kbd>MMB</kbd> - Clear the asset. You can also click the X on the thumbnail. If this asset is at the end of the list, this will also remove it. You can clear and reuse this asset, or change its ID to move it to the end for removal. When using the instancer, this will remove all instances painted on the ground. It will ask for confirmation first.
-
-
-

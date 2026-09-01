@@ -23,7 +23,9 @@ This class handles options for both the built-in shader and any custom override 
 
 It is a savable resource, so you can save it to disk and use the same material settings in multiple scenes that use Terrain3D. The amount of data is small, assuming you have saved your shader parameter textures to disk, so it can be saved as a git-friendly, text based .tres file or left within the scene file.
 
-While it does mimic some of the functionality of ShaderMaterial, it does not derive from any of the Godot Material classes. It will not pass any ``is Material`` checks. It is a ``Resource``.
+While it does mimic some of the functionality of ShaderMaterial, it does not derive from any of the Godot Material classes. It will fail any ``is Material`` checks. It is a ``Resource``.
+
+Inspector settings above `Custom Shader` and :ref:`shader_override<class_Terrain3DMaterial_property_shader_override>` are used to determine what code is used in the current shader. Inspector settings in `Shader Uniforms` are the public uniforms (not prefaced with `\_`) available in the current shader.
 
 .. rst-class:: classref-reftable-group
 
@@ -47,6 +49,22 @@ Properties
    | ``float``                                                        | :ref:`displacement_sharpness<class_Terrain3DMaterial_property_displacement_sharpness>`                 | ``0.5``   |
    +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
    | ``bool``                                                         | :ref:`dual_scaling_enabled<class_Terrain3DMaterial_property_dual_scaling_enabled>`                     | ``false`` |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`macro_variation_enabled<class_Terrain3DMaterial_property_macro_variation_enabled>`               | ``false`` |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | :ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>`       | :ref:`max_regions<class_Terrain3DMaterial_property_max_regions>`                                       | ``1024``  |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`output_albedo<class_Terrain3DMaterial_property_output_albedo>`                                   | ``true``  |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`output_ambient_occlusion<class_Terrain3DMaterial_property_output_ambient_occlusion>`             | ``true``  |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`output_normal_map<class_Terrain3DMaterial_property_output_normal_map>`                           | ``true``  |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`output_roughness<class_Terrain3DMaterial_property_output_roughness>`                             | ``true``  |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`output_specular<class_Terrain3DMaterial_property_output_specular>`                               | ``true``  |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`projection_enabled<class_Terrain3DMaterial_property_projection_enabled>`                         | ``false`` |
    +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
    | ``Shader``                                                       | :ref:`shader_override<class_Terrain3DMaterial_property_shader_override>`                               |           |
    +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
@@ -83,6 +101,8 @@ Properties
    | ``bool``                                                         | :ref:`show_region_grid<class_Terrain3DMaterial_property_show_region_grid>`                             | ``false`` |
    +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
    | ``bool``                                                         | :ref:`show_roughmap<class_Terrain3DMaterial_property_show_roughmap>`                                   | ``false`` |
+   +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
+   | ``bool``                                                         | :ref:`show_slope<class_Terrain3DMaterial_property_show_slope>`                                         | ``false`` |
    +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
    | ``bool``                                                         | :ref:`show_texture_albedo<class_Terrain3DMaterial_property_show_texture_albedo>`                       | ``false`` |
    +------------------------------------------------------------------+--------------------------------------------------------------------------------------------------------+-----------+
@@ -124,7 +144,7 @@ Methods
    +-------------+----------------------------------------------------------------------------------------------------------------------------+
    | |void|      | :ref:`set_shader_param<class_Terrain3DMaterial_method_set_shader_param>`\ (\ name\: ``StringName``, value\: ``Variant``\ ) |
    +-------------+----------------------------------------------------------------------------------------------------------------------------+
-   | |void|      | :ref:`update<class_Terrain3DMaterial_method_update>`\ (\ full\: ``bool`` = false\ )                                        |
+   | |void|      | :ref:`update<class_Terrain3DMaterial_method_update>`\ (\ flags\: ``int`` = 0\ )                                            |
    +-------------+----------------------------------------------------------------------------------------------------------------------------+
 
 .. rst-class:: classref-section-separator
@@ -170,27 +190,143 @@ Outside of the defined regions, generate visual-only hills.
 
 ----
 
+.. _enum_Terrain3DMaterial_RegionMaximum:
+
+.. rst-class:: classref-enumeration
+
+enum **RegionMaximum**: :ref:`🔗<enum_Terrain3DMaterial_RegionMaximum>`
+
+.. _class_Terrain3DMaterial_constant_MAX_REGIONS_64:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>` **MAX_REGIONS_64** = ``64``
+
+Renders only the first 64 regions that are loaded.
+
+.. _class_Terrain3DMaterial_constant_MAX_REGIONS_128:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>` **MAX_REGIONS_128** = ``128``
+
+Renders only the first 128 regions that are loaded.
+
+.. _class_Terrain3DMaterial_constant_MAX_REGIONS_256:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>` **MAX_REGIONS_256** = ``256``
+
+Renders only the first 256 regions that are loaded.
+
+.. _class_Terrain3DMaterial_constant_MAX_REGIONS_512:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>` **MAX_REGIONS_512** = ``512``
+
+Renders only the first 512 regions that are loaded.
+
+.. _class_Terrain3DMaterial_constant_MAX_REGIONS_1024:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>` **MAX_REGIONS_1024** = ``1024``
+
+Renders only the first 1024 regions that are loaded.
+
+.. rst-class:: classref-item-separator
+
+----
+
 .. _enum_Terrain3DMaterial_TextureFiltering:
 
 .. rst-class:: classref-enumeration
 
 enum **TextureFiltering**: :ref:`🔗<enum_Terrain3DMaterial_TextureFiltering>`
 
+.. _class_Terrain3DMaterial_constant_LINEAR_ANISOTROPIC:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`TextureFiltering<enum_Terrain3DMaterial_TextureFiltering>` **LINEAR_ANISOTROPIC** = ``0``
+
+Textures are filtered using a blend of 4 adjacent pixels, with anisotropic filtering which improves the sharpness of distant terrain off axis from the camera. Use this for most cases for high quality renders.
+
 .. _class_Terrain3DMaterial_constant_LINEAR:
 
 .. rst-class:: classref-enumeration-constant
 
-:ref:`TextureFiltering<enum_Terrain3DMaterial_TextureFiltering>` **LINEAR** = ``0``
+:ref:`TextureFiltering<enum_Terrain3DMaterial_TextureFiltering>` **LINEAR** = ``1``
 
 Textures are filtered using a blend of 4 adjacent pixels. Use this for most cases for high quality renders.
+
+.. _class_Terrain3DMaterial_constant_NEAREST_ANISOTROPIC:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`TextureFiltering<enum_Terrain3DMaterial_TextureFiltering>` **NEAREST_ANISOTROPIC** = ``2``
+
+Textures are filtered using the nearest pixel only with anisotropic filtering which improves the sharpness of distant terrain off axis from the camera. It is faster than LINEAR, but the texture will look pixelated. Use this for a low-poly look, with a very low uv_scale.
 
 .. _class_Terrain3DMaterial_constant_NEAREST:
 
 .. rst-class:: classref-enumeration-constant
 
-:ref:`TextureFiltering<enum_Terrain3DMaterial_TextureFiltering>` **NEAREST** = ``1``
+:ref:`TextureFiltering<enum_Terrain3DMaterial_TextureFiltering>` **NEAREST** = ``3``
 
-Textures are filtered using a the nearest pixel only. It is faster than LINEAR, but the texture will look pixelated. Use this for a low-poly look, with a very low uv_scale.
+Textures are filtered using the nearest pixel only. It is faster than LINEAR, but the texture will look pixelated. Use this for a low-poly look, with a very low uv_scale.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _enum_Terrain3DMaterial_UpdateFlags:
+
+.. rst-class:: classref-enumeration
+
+enum **UpdateFlags**: :ref:`🔗<enum_Terrain3DMaterial_UpdateFlags>`
+
+.. _class_Terrain3DMaterial_constant_UNIFORMS_ONLY:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`UpdateFlags<enum_Terrain3DMaterial_UpdateFlags>` **UNIFORMS_ONLY** = ``0``
+
+Non-texture array values are assigned to the shader. This is the default and is always done.
+
+.. _class_Terrain3DMaterial_constant_TEXTURE_ARRAYS:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`UpdateFlags<enum_Terrain3DMaterial_UpdateFlags>` **TEXTURE_ARRAYS** = ``1``
+
+The ground texture arrays are assigned to the shader, along with the values in `UNIFORMS_ONLY`.
+
+.. _class_Terrain3DMaterial_constant_REGION_ARRAYS:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`UpdateFlags<enum_Terrain3DMaterial_UpdateFlags>` **REGION_ARRAYS** = ``2``
+
+The region data texture arrays are assigned to the shader, along with the values in `UNIFORMS_ONLY`.
+
+.. _class_Terrain3DMaterial_constant_UPDATE_ARRAYS:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`UpdateFlags<enum_Terrain3DMaterial_UpdateFlags>` **UPDATE_ARRAYS** = ``3``
+
+Values in `TEXTURE_ARRAYS` and `REGION_ARRAYS` are assigned to the shader.
+
+.. _class_Terrain3DMaterial_constant_FULL_REBUILD:
+
+.. rst-class:: classref-enumeration-constant
+
+:ref:`UpdateFlags<enum_Terrain3DMaterial_UpdateFlags>` **FULL_REBUILD** = ``7``
+
+The shader is rebuilt, then all values in `UPDATE_ARRAYS` are assigned to the shader.
 
 .. rst-class:: classref-section-separator
 
@@ -221,8 +357,8 @@ This private dictionary stores all of the shader parameters in the resource. It 
 
 .. rst-class:: classref-property-setget
 
-- |void| **set_auto_shader**\ (\ value\: ``bool``\ )
-- ``bool`` **get_auto_shader**\ (\ )
+- |void| **set_auto_shader_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_auto_shader_enabled**\ (\ )
 
 Enables selecting two texture IDs that will automatically be applied to the terrain based upon slope.
 
@@ -306,10 +442,146 @@ Adjusts the transition between textures. When set at `1.0`, the blending of disp
 
 .. rst-class:: classref-property-setget
 
-- |void| **set_dual_scaling**\ (\ value\: ``bool``\ )
-- ``bool`` **get_dual_scaling**\ (\ )
+- |void| **set_dual_scaling_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_dual_scaling_enabled**\ (\ )
 
 Enables selecting one texture ID that will have multiple scales applied based upon camera distance. Use it for something like a rock texture so up close it will be nicely detailed, and far away mountains can be covered in the same rock texture without looking tiled. The two blend together at a specified distance.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_macro_variation_enabled:
+
+.. rst-class:: classref-property
+
+``bool`` **macro_variation_enabled** = ``false`` :ref:`🔗<class_Terrain3DMaterial_property_macro_variation_enabled>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_macro_variation_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_macro_variation_enabled**\ (\ )
+
+Allows you to add a couple of noise patterns at different scales and colors to add variation to your terrain to avoid tiled textures.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_max_regions:
+
+.. rst-class:: classref-property
+
+:ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>` **max_regions** = ``1024`` :ref:`🔗<class_Terrain3DMaterial_property_max_regions>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_max_regions**\ (\ value\: :ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>`\ )
+- :ref:`RegionMaximum<enum_Terrain3DMaterial_RegionMaximum>` **get_max_regions**\ (\ )
+
+This limits the material to rendering the first X number of regions that are loaded. Region order is not stable. It does not reduce VRAM. Regions loaded beyond this number are still present in memory, VRAM, and on disk, they just don't render. This is used to reduce uniform buffer consumption on mobile apps and web for mobile. Set to the minimum number of regions you need, keep your region count low (64-256), and test a variety of devices to ensure your target audience can render textures on the terrain.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_output_albedo:
+
+.. rst-class:: classref-property
+
+``bool`` **output_albedo** = ``true`` :ref:`🔗<class_Terrain3DMaterial_property_output_albedo>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_output_albedo_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_output_albedo_enabled**\ (\ )
+
+Enables the Albedo, aka Base Color or Diffuse, output channel in the shader.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_output_ambient_occlusion:
+
+.. rst-class:: classref-property
+
+``bool`` **output_ambient_occlusion** = ``true`` :ref:`🔗<class_Terrain3DMaterial_property_output_ambient_occlusion>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_output_ambient_occlusion_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_output_ambient_occlusion_enabled**\ (\ )
+
+Enables the Ambient Occlusion output channel in the shader.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_output_normal_map:
+
+.. rst-class:: classref-property
+
+``bool`` **output_normal_map** = ``true`` :ref:`🔗<class_Terrain3DMaterial_property_output_normal_map>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_output_normal_map_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_output_normal_map_enabled**\ (\ )
+
+Enables the Normal Map output channel in the shader.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_output_roughness:
+
+.. rst-class:: classref-property
+
+``bool`` **output_roughness** = ``true`` :ref:`🔗<class_Terrain3DMaterial_property_output_roughness>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_output_roughness_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_output_roughness_enabled**\ (\ )
+
+Enables the Roughness output channel in the shader.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_output_specular:
+
+.. rst-class:: classref-property
+
+``bool`` **output_specular** = ``true`` :ref:`🔗<class_Terrain3DMaterial_property_output_specular>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_output_specular_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_output_specular_enabled**\ (\ )
+
+Enables the Specular output channel in the shader.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_projection_enabled:
+
+.. rst-class:: classref-property
+
+``bool`` **projection_enabled** = ``false`` :ref:`🔗<class_Terrain3DMaterial_property_projection_enabled>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_projection_enabled**\ (\ value\: ``bool``\ )
+- ``bool`` **get_projection_enabled**\ (\ )
+
+Enables textures to be projected vertically when placed on slopes above 45 degrees. This is useful for mapping textures on cliff faces without stretching, even though the polygons are stretched.
 
 .. rst-class:: classref-item-separator
 
@@ -343,7 +615,9 @@ If shader_override_enabled is true and this Shader is valid, the material will u
 - |void| **set_shader_override_enabled**\ (\ value\: ``bool``\ )
 - ``bool`` **is_shader_override_enabled**\ (\ )
 
-Enables use of the :ref:`shader_override<class_Terrain3DMaterial_property_shader_override>` shader code. Generates default code if shader_override is blank.
+Enables using the :ref:`shader_override<class_Terrain3DMaterial_property_shader_override>` shader. An editable shader is generated from the current one if shader_override is blank.
+
+The inspector settings above this group determine the code that is used in the current shader. The settings below are uniforms for the current shader.
 
 .. rst-class:: classref-item-separator
 
@@ -413,7 +687,7 @@ Shows the color map in the albedo channel.
 - |void| **set_show_contours**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_contours**\ (\ )
 
-Overlays contour lines on the terrain. Customize the options in the material when enabled. Press `4` with the mouse in the viewport to toggle.
+Overlays contour lines on the terrain. Customize the options in the material when enabled. With the mouse in the viewport you can press the hotkey to toggle visibility (default `3`).
 
 .. rst-class:: classref-item-separator
 
@@ -549,7 +823,7 @@ Albedo is a white to black gradient depending on height. The gradient is scaled 
 - |void| **set_show_instancer_grid**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_instancer_grid**\ (\ )
 
-Overlays the 32x32m instancer grid on the terrain, which shows how the instancer data is partitioned. Press `2` with the mouse in the viewport to toggle.
+Overlays the 32x32m instancer grid on the terrain, which shows how the instancer data is partitioned.
 
 .. rst-class:: classref-item-separator
 
@@ -600,7 +874,7 @@ Displays the area designated for generating the navigation mesh.
 - |void| **set_show_region_grid**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_region_grid**\ (\ )
 
-Overlays the region grid on the terrain. This is more accurate than the region grid gizmo for determining where the region border is when editing. Press `1` with the mouse in the viewport to toggle.
+Overlays the region grid on the terrain. This is more accurate than the region grid gizmo for determining where the region border is when editing. With the mouse in the viewport you can press the hotkey to toggle visibility (default `1`).
 
 .. rst-class:: classref-item-separator
 
@@ -618,6 +892,23 @@ Overlays the region grid on the terrain. This is more accurate than the region g
 - ``bool`` **get_show_roughmap**\ (\ )
 
 Albedo is set to the roughness modification map as grey scale. Middle grey, 0.5 means no roughness modification. Black would be high gloss while white is very rough.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DMaterial_property_show_slope:
+
+.. rst-class:: classref-property
+
+``bool`` **show_slope** = ``false`` :ref:`🔗<class_Terrain3DMaterial_property_show_slope>`
+
+.. rst-class:: classref-property-setget
+
+- |void| **set_show_slope**\ (\ value\: ``bool``\ )
+- ``bool`` **get_show_slope**\ (\ )
+
+Overlays slope color on the terrain. Customize the options in the material when enabled. With the mouse in the viewport you can press the hotkey to toggle visibility (default `4`).
 
 .. rst-class:: classref-item-separator
 
@@ -719,7 +1010,7 @@ Albedo is set to the painted Roughness textures. This is different from the roug
 - |void| **set_show_vertex_grid**\ (\ value\: ``bool``\ )
 - ``bool`` **get_show_vertex_grid**\ (\ )
 
-Overlays the vertex grid on the terrain, showing where each vertex is. Press `3` with the mouse in the viewport to toggle.
+Overlays the vertex grid on the terrain, showing where each vertex is. With the mouse in the viewport you can press the hotkey to toggle visibility (default `5`).
 
 .. rst-class:: classref-item-separator
 
@@ -854,13 +1145,12 @@ Set a parameter in the active shader (built-in or override shader).
 
 .. rst-class:: classref-method
 
-|void| **update**\ (\ full\: ``bool`` = false\ ) :ref:`🔗<class_Terrain3DMaterial_method_update>`
+|void| **update**\ (\ flags\: ``int`` = 0\ ) :ref:`🔗<class_Terrain3DMaterial_method_update>`
 
-Sends all uniform values to the shader again.
-
-full - recompiles the shader first.
+Sends uniform values to the shader. See :ref:`UpdateFlags<enum_Terrain3DMaterial_UpdateFlags>` for options.
 
 .. |virtual| replace:: :abbr:`virtual (This method should typically be overridden by the user to have any effect.)`
+.. |required| replace:: :abbr:`required (This method is required to be overridden when extending its base class.)`
 .. |const| replace:: :abbr:`const (This method has no side effects. It doesn't modify any of the instance's member variables.)`
 .. |vararg| replace:: :abbr:`vararg (This method accepts any number of arguments after the ones described here.)`
 .. |constructor| replace:: :abbr:`constructor (This method is used to construct a type.)`

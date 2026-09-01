@@ -1,4 +1,4 @@
-// Copyright © 2025 Cory Petkovsek, Roope Palmroos, and Contributors.
+// Copyright © 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors.
 
 #ifndef TERRAIN3D_MATERIAL_CLASS_H
 #define TERRAIN3D_MATERIAL_CLASS_H
@@ -22,8 +22,26 @@ public: // Constants
 	};
 
 	enum TextureFiltering {
+		LINEAR_ANISOTROPIC,
 		LINEAR,
+		NEAREST_ANISOTROPIC,
 		NEAREST,
+	};
+
+	enum RegionMaximum {
+		MAX_REGIONS_64 = 64,
+		MAX_REGIONS_128 = 128,
+		MAX_REGIONS_256 = 256,
+		MAX_REGIONS_512 = 512,
+		MAX_REGIONS_1024 = 1024,
+	};
+
+	enum UpdateFlags {
+		UNIFORMS_ONLY = 0,
+		TEXTURE_ARRAYS = 1 << 0,
+		REGION_ARRAYS = 1 << 1,
+		UPDATE_ARRAYS = TEXTURE_ARRAYS | REGION_ARRAYS,
+		FULL_REBUILD = (1 << 2) | UPDATE_ARRAYS,
 	};
 
 private:
@@ -34,7 +52,7 @@ private:
 	Dictionary _shader_code; // All loaded shader and INSERT code
 	bool _shader_override_enabled = false;
 	Ref<Shader> _shader_override; // User's shader we copy code from
-	mutable TypedArray<StringName> _active_params; // All shader params in the current shader
+	mutable TypedArray<StringName> _active_params; // All public shader params in the current shader
 	mutable Dictionary _shader_params; // Public shader params saved to disk
 
 	RID _buffer_material;
@@ -43,18 +61,30 @@ private:
 	Ref<Shader> _buffer_shader_override; // User's shader we copy code from
 	real_t _displacement_scale = 1.0f;
 	real_t _displacement_sharpness = 0.5f;
+	GeneratedTexture _generated_dummy;
 
 	// Material Features
 	WorldBackground _world_background = FLAT;
-	TextureFiltering _texture_filtering = LINEAR;
-	bool _dual_scaling = false;
-	bool _auto_shader = false;
+	TextureFiltering _texture_filtering = LINEAR_ANISOTROPIC;
+	bool _dual_scaling_enabled = false;
+	bool _auto_shader_enabled = false;
+	bool _macro_variation_enabled = false;
+	bool _projection_enabled = false;
+	RegionMaximum _max_regions = MAX_REGIONS_1024;
+
+	// PBR Outputs
+	bool _output_albedo_enabled = true;
+	bool _output_roughness_enabled = true;
+	bool _output_specular_enabled = true;
+	bool _output_normal_map_enabled = true;
+	bool _output_ambient_occlusion_enabled = true;
 
 	// Overlays
 	bool _show_region_grid = false;
 	bool _show_instancer_grid = false;
 	bool _show_vertex_grid = false;
 	bool _show_contours = false;
+	bool _show_slope = false;
 	bool _show_navigation = false;
 
 	// Debug Views
@@ -84,11 +114,11 @@ private:
 	void _parse_shader(const String &p_shader, const String &p_name);
 	String _apply_inserts(const String &p_shader, const Array &p_excludes = Array()) const;
 	String _generate_shader_code() const;
-	String _generate_buffer_shader_code();
+	String _generate_buffer_shader_code() const;
 	String _strip_comments(const String &p_shader) const;
 	String _inject_editor_code(const String &p_shader) const;
 	void _update_shader();
-	void _update_uniforms(const RID &p_material);
+	void _update_uniforms(const RID &p_material, const uint32_t p_update = UNIFORMS_ONLY);
 	void _set_shader_parameters(const Dictionary &p_dict);
 	Dictionary _get_shader_parameters() const { return _shader_params; }
 
@@ -100,7 +130,7 @@ public:
 	void uninitialize();
 	void destroy();
 
-	void update(bool p_full = false);
+	void update(const uint32_t p_flags = UNIFORMS_ONLY);
 	RID get_material_rid() const { return _material; }
 	RID get_shader_rid() const { return _shader.is_valid() ? _shader->get_rid() : RID(); }
 
@@ -116,10 +146,16 @@ public:
 	WorldBackground get_world_background() const { return _world_background; }
 	void set_texture_filtering(const TextureFiltering p_filtering);
 	TextureFiltering get_texture_filtering() const { return _texture_filtering; }
-	void set_auto_shader(const bool p_enabled);
-	bool get_auto_shader() const { return _auto_shader; }
-	void set_dual_scaling(const bool p_enabled);
-	bool get_dual_scaling() const { return _dual_scaling; }
+	void set_auto_shader_enabled(const bool p_enabled);
+	bool get_auto_shader_enabled() const { return _auto_shader_enabled; }
+	void set_dual_scaling_enabled(const bool p_enabled);
+	bool get_dual_scaling_enabled() const { return _dual_scaling_enabled; }
+	void set_macro_variation_enabled(const bool p_enabled);
+	bool get_macro_variation_enabled() const { return _macro_variation_enabled; }
+	void set_projection_enabled(const bool p_enabled);
+	bool get_projection_enabled() const { return _projection_enabled; }
+	void set_max_regions(const RegionMaximum p_max);
+	RegionMaximum get_max_regions() const { return _max_regions; }
 
 	void set_shader_override_enabled(const bool p_enabled);
 	bool is_shader_override_enabled() const { return _shader_override_enabled; }
@@ -134,6 +170,18 @@ public:
 	void set_shader_param(const StringName &p_name, const Variant &p_value);
 	Variant get_shader_param(const StringName &p_name) const;
 
+	// PBR Material Output
+	void set_output_albedo_enabled(const bool p_enabled);
+	bool get_output_albedo_enabled() const { return _output_albedo_enabled; }
+	void set_output_roughness_enabled(const bool p_enabled);
+	bool get_output_roughness_enabled() const { return _output_roughness_enabled; }
+	void set_output_specular_enabled(const bool p_enabled);
+	bool get_output_specular_enabled() const { return _output_specular_enabled; }
+	void set_output_normal_map_enabled(const bool p_enabled);
+	bool get_output_normal_map_enabled() const { return _output_normal_map_enabled; }
+	void set_output_ambient_occlusion_enabled(const bool p_enabled);
+	bool get_output_ambient_occlusion_enabled() const { return _output_ambient_occlusion_enabled; }
+
 	// Overlays
 	void set_show_region_grid(const bool p_enabled);
 	bool get_show_region_grid() const { return _show_region_grid; }
@@ -143,10 +191,12 @@ public:
 	bool get_show_vertex_grid() const { return _show_vertex_grid; }
 	void set_show_contours(const bool p_enabled);
 	bool get_show_contours() const { return _show_contours; }
+	void set_show_slope(const bool p_enabled);
+	bool get_show_slope() const { return _show_slope; }
 	void set_show_navigation(const bool p_enabled);
 	bool get_show_navigation() const { return _show_navigation; }
 
-	// Debug views
+	// Debug Views
 	void set_show_checkered(const bool p_enabled);
 	bool get_show_checkered() const { return _debug_view_checkered; }
 	void set_show_grey(const bool p_enabled);
@@ -172,7 +222,7 @@ public:
 	void set_show_displacement_buffer(const bool p_enabled);
 	bool get_show_displacement_buffer() const { return _debug_view_displacement_buffer; }
 
-	// PBR Views
+	// PBR Debug Views
 	void set_show_texture_albedo(const bool p_enabled);
 	bool get_show_texture_albedo() const { return _pbr_view_tex_albedo; }
 	void set_show_texture_height(const bool p_enabled);
@@ -197,6 +247,8 @@ protected:
 };
 
 VARIANT_ENUM_CAST(Terrain3DMaterial::WorldBackground);
+VARIANT_ENUM_CAST(Terrain3DMaterial::RegionMaximum);
 VARIANT_ENUM_CAST(Terrain3DMaterial::TextureFiltering);
+VARIANT_ENUM_CAST(Terrain3DMaterial::UpdateFlags);
 
 #endif // TERRAIN3D_MATERIAL_CLASS_H
