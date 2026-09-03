@@ -586,7 +586,12 @@ void Terrain3DEditor::_operate_map(const Vector3 &p_global_position, const real_
 }
 
 void Terrain3DEditor::_store_undo() {
-	IS_INIT_COND_MESG(!_terrain->get_plugin(), "_terrain isn't initialized, returning", VOID);
+	IS_INIT_MESG("Terrain3DEditor isn't initialized, returning", VOID);
+	// Plugin is not available at runtime editor terrains
+	if (!_terrain->get_plugin()) {
+		LOG(DEBUG, "No editor plugin, skipping undo storage");
+		return;
+	}
 	if (_tool < 0 || _tool >= TOOL_MAX) {
 		return;
 	}
@@ -653,7 +658,12 @@ void Terrain3DEditor::_store_undo() {
 }
 
 void Terrain3DEditor::_apply_undo(const Dictionary &p_data) {
-	IS_INIT_COND_MESG(!_terrain->get_plugin(), "_terrain isn't initialized, returning", VOID);
+	IS_INIT_MESG("Terrain3DEditor isn't initialized, returning", VOID);
+	// See _store_undo: no plugin means no undo manager, which is normal at runtime.
+	if (!_terrain->get_plugin()) {
+		LOG(DEBUG, "No editor plugin, nothing to apply");
+		return;
+	}
 	LOG(INFO, "Applying Undo/Redo data");
 
 	Terrain3DData *data = _terrain->get_data();
