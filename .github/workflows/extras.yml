@@ -143,27 +143,54 @@ jobs:
           set -euo pipefail
           scons target=${{ matrix.target }} platform=${{ matrix.config.platform }} arch=${{ matrix.config.arch }} debug_symbols=no -j4
 
-      # Guards the bug this job's shape exists to avoid: a mis-generated binding
-      # set yields a library whose word size disagrees with its arch, and that only
-      # shows up as a segfault on the target device. Fail here instead.
-      - name: Verify Architecture
+      # Guards the bug this job's shape exists to avoid. The generated-bindings check is the
+      # one that matters: the library that shipped 32-bit StringName/Variant sizes was itself
+      # a perfectly well-formed 64-bit ELF, so inspecting the output alone cannot see it.
+      - name: Verify Build
         shell: bash
         run: |
           set -euo pipefail
-          cd project/addons/terrain_3d/bin
-          ls -l
-          for f in *; do
-            [ -f "$f" ] || continue
-            case "$f" in *.a) continue ;; esac
-            desc=$(file -b "$f")
-            echo "$f: $desc"
-            case "${{ matrix.config.arch }}" in
-              *64)
-                echo "$desc" | grep -q "64-bit" || { echo "::error::$f is not 64-bit"; exit 1; } ;;
-              *32)
-                echo "$desc" | grep -q "32-bit" || { echo "::error::$f is not 32-bit"; exit 1; } ;;
-            esac
-          done
+          case "${{ matrix.config.arch }}" in
+            *64) want_bits=64; want_size=8 ;;
+            *32) want_bits=32; want_size=4 ;;
+            *) echo "::error::unhandled arch ${{ matrix.config.arch }}"; exit 1 ;;
+          esac
+
+          # 1. godot-cpp's gen/ must match this arch's pointer size. A stale gen/ left by a
+          #    build of a different arch is what produced a 64-bit .so with 4-byte StringName.
+          hdr=godot-cpp/gen/include/godot_cpp/variant/string_name.hpp
+          got_size=$(sed -n 's/.*STRING_NAME_SIZE = \([0-9]*\).*/\1/p' "$hdr" | head -1)
+          echo "STRING_NAME_SIZE=${got_size} (want ${want_size})"
+          if [ "$got_size" != "$want_size" ]; then
+            echo "::error::generated bindings are for the wrong word size, gen/ is stale"
+            exit 1
+          fi
+
+          # 2. And the library really is the architecture we asked for. Read the headers rather
+          #    than parse `file`, whose wording differs per format (PE says "PE32"/"Intel 80386",
+          #    never "32-bit", and "PE32+" means 64-bit).
+          python3 - "$want_bits" <<'PY'
+          import glob, struct, sys
+
+          want = int(sys.argv[1])
+          files = [f for f in glob.glob("project/addons/terrain_3d/bin/*") if not f.endswith(".a")]
+          if not files:
+              raise SystemExit("::error::no libraries were produced")
+          for f in files:
+              d = open(f, "rb").read(0x400)
+              if d[:4] == b"\x7fELF":
+                  bits = 64 if d[4] == 2 else 32
+              elif d[:2] == b"MZ":
+                  machine = struct.unpack_from("<H", d, struct.unpack_from("<I", d, 0x3C)[0] + 4)[0]
+                  bits = {0x8664: 64, 0xAA64: 64, 0x14C: 32}.get(machine)
+                  if bits is None:
+                      raise SystemExit(f"::error::{f}: unknown PE machine 0x{machine:04x}")
+              else:
+                  raise SystemExit(f"::error::{f}: unrecognised binary format")
+              print(f"{f}: {bits}-bit")
+              if bits != want:
+                  raise SystemExit(f"::error::{f} is {bits}-bit, expected {want}-bit")
+          PY
 
       # Drop the least-recently-modified entries until under the cap.
       - name: Trim SCons Cache
