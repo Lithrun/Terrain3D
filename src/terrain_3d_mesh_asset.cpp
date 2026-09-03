@@ -593,8 +593,11 @@ void Terrain3DMeshAsset::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("instance_count_changed"));
 
 	ClassDB::bind_method(D_METHOD("clear"), &Terrain3DMeshAsset::clear);
-	ClassDB::bind_method(D_METHOD("set_name", "name"), &Terrain3DMeshAsset::set_name);
-	ClassDB::bind_method(D_METHOD("get_name"), &Terrain3DMeshAsset::get_name);
+	// Bound as *_asset_name rather than set_name/get_name: Resource already owns those (exposing them
+	// as `resource_name`), and 4.8 rejects a GDExtension binding that shadows a base class member.
+	// The property stays named "name", so existing .tres files are unaffected.
+	ClassDB::bind_method(D_METHOD("set_asset_name", "name"), &Terrain3DMeshAsset::set_name);
+	ClassDB::bind_method(D_METHOD("get_asset_name"), &Terrain3DMeshAsset::get_name);
 	ClassDB::bind_method(D_METHOD("set_id", "id"), &Terrain3DMeshAsset::set_id);
 	ClassDB::bind_method(D_METHOD("get_id"), &Terrain3DMeshAsset::get_id);
 	ClassDB::bind_method(D_METHOD("set_highlighted", "enabled"), &Terrain3DMeshAsset::set_highlighted);
@@ -663,7 +666,7 @@ void Terrain3DMeshAsset::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("get_instance_count"), &Terrain3DMeshAsset::get_instance_count);
 
-	ADD_PROPERTY(PropertyInfo(Variant::STRING, "name", PROPERTY_HINT_NONE), "set_name", "get_name");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "name", PROPERTY_HINT_NONE), "set_asset_name", "get_asset_name");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "id", PROPERTY_HINT_NONE), "set_id", "get_id");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "enabled", PROPERTY_HINT_NONE), "set_enabled", "is_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "scene_file", PROPERTY_HINT_RESOURCE_TYPE, "PackedScene"), "set_scene_file", "get_scene_file");

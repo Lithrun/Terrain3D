@@ -752,6 +752,10 @@ void Terrain3D::snap() {
 }
 
 void Terrain3D::set_material(const Ref<Terrain3DMaterial> &p_material) {
+	// Outlives _initialize() on purpose. The clipmap meshes hold the outgoing material's RID, so
+	// releasing our last reference before they are repointed frees it under them, and the renderer
+	// then re-resolves a dead material once per instance (4 RS errors x every clipmap instance).
+	const Ref<Terrain3DMaterial> outgoing = _material;
 	SET_IF_DIFF(_material, p_material);
 	LOG(INFO, "Setting material");
 	_initialized = false;

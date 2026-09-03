@@ -482,7 +482,9 @@ void Terrain3DRegion::_bind_methods() {
 
 	ClassDB::bind_method(D_METHOD("set_data", "data"), &Terrain3DRegion::set_data);
 	ClassDB::bind_method(D_METHOD("get_data"), &Terrain3DRegion::get_data);
-	ClassDB::bind_method(D_METHOD("duplicate", "deep"), &Terrain3DRegion::duplicate, DEFVAL(false));
+	// Bound as duplicate_region: Resource::duplicate already owns "duplicate" and 4.8 rejects the
+	// shadowing binding, which silently left this method unavailable to scripts.
+	ClassDB::bind_method(D_METHOD("duplicate_region", "deep"), &Terrain3DRegion::duplicate, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("dump", "verbose"), &Terrain3DRegion::dump, DEFVAL(false));
 
 	int ro_flags = PROPERTY_USAGE_STORAGE | PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_READ_ONLY;

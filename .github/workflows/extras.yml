@@ -11,7 +11,7 @@
 #   from upstream's reusable workflows, called unmodified
 #     windows  x86_64, arm64      linux  x86_64
 #     android  arm64, arm32       macos  universal      ios  universal
-#   from the fork-local `gaps` job
+#   from the fork-local `gaps` matrix
 #     windows  x86_32             android  x86_64
 #
 # Web is deliberately not built: Erios does not export for it. Upstream's own
@@ -19,15 +19,11 @@
 # workflow_dispatch; this workflow is the push-to-main path and merges into a
 # differently named artifact, so the two never collide.
 #
-# `gaps` builds both targets (debug + release) for each of its two configs.
-# godot-cpp object files are
-# named per platform.target.arch, so nothing is shared between the four configs --
-# a cold run compiles the binding set four times over, ~25 min. The SCons cache
-# below is what keeps subsequent runs short, so it is deliberately NOT upstream's
-# load-cache action: that one keys on the branch ref and skips saving on an exact
-# hit, which freezes the cache at its first-run contents forever. Here the key
-# rolls per run and the save is unconditional, so each run starts from the
-# previous run's cache and only recompiles what actually changed.
+# The SCons cache below is deliberately NOT upstream's load-cache action: that one
+# keys on the branch ref and skips saving on an exact hit, which freezes the cache
+# at its first-run contents forever. Here the key rolls per run and the save is
+# unconditional, so each run starts from the previous run's cache and only
+# recompiles what actually changed.
 
 name: 🧩 All Platforms Except Web
 on:
@@ -40,7 +36,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  CACHE_NAME: extras-windows-x86_32-android-x86_64
   SCONS_CACHE_DIR: ${{ github.workspace }}/.scons-cache
   # Cap the cache dir before saving. SCons never evicts, and Terrain3D's
   # SConstruct honours only SCONS_CACHE (no cache_limit option), so without this
@@ -70,10 +65,29 @@ jobs:
     uses: ./.github/workflows/ios.yml
 
   # --- The two configs no upstream workflow covers ---------------------------
+  # One job per config, deliberately. godot-cpp picks its builtin type sizes from
+  # `arch` ("32" if "32" in env["arch"] else "64"), but the SCons builder that
+  # generates gen/ depends only on extension_api.json, so a second build in the
+  # same workspace silently reuses the first one's headers. Building windows
+  # x86_32 and android x86_64 in one job therefore produced an x86_64 library with
+  # 32-bit StringName/Variant sizes, which segfaults the engine during GDExtension
+  # init. Never pair two different bit-widths in one workspace.
   gaps:
-    name: 🧩 Windows x86_32 + Android x86_64
+    name: 🧩 ${{ matrix.config.platform }} ${{ matrix.config.arch }} ${{ matrix.target }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [ template_debug, template_release ]
+        config:
+          - platform: windows
+            arch: x86_32
+          - platform: android
+            arch: x86_64
+
+    env:
+      CACHE_NAME: extras-${{ matrix.config.platform }}-${{ matrix.config.arch }}-${{ matrix.target }}
 
     steps:
       - name: Checkout
@@ -81,35 +95,28 @@ jobs:
         with:
           submodules: recursive
 
-      # Upstream's action. Gives us Python + SCons, and the Android NDK -- its
-      # android branch keys off platform only, so x86_64 is covered. Its windows
-      # branches only cover x86_64/arm64, so x86_32 is handled below.
+      # Upstream's action. Gives us Python + SCons, plus the Android NDK for the
+      # android config.
       - name: Setup Dependencies
         uses: ./.github/actions/dependencies
         with:
-          platform: android
-          arch: x86_64
+          platform: ${{ matrix.config.platform }}
+          arch: ${{ matrix.config.arch }}
 
-      # --- Fork-local toolchain setup ---------------------------------------
-      # x86_32 needs the i686 toolchain, specifically the POSIX (gthreads)
-      # variant -- the win32 variant ships no std::mutex, which fails the build
-      # partway through rather than up front.
+      # Fork-local: upstream's windows branches only cover x86_64/arm64, so x86_32
+      # needs the i686 toolchain, specifically the POSIX (gthreads) variant. The
+      # win32 variant ships no std::mutex, which fails partway through the build
+      # rather than up front.
       - name: Setup Windows Mingw32
+        if: matrix.config.arch == 'x86_32'
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y \
-            mingw-w64 \
-            gcc-mingw-w64-i686-posix \
-            g++-mingw-w64-i686-posix
+          sudo apt-get install -y mingw-w64 gcc-mingw-w64-i686-posix g++-mingw-w64-i686-posix
           sudo update-alternatives --set i686-w64-mingw32-gcc /usr/bin/i686-w64-mingw32-gcc-posix
           sudo update-alternatives --set i686-w64-mingw32-g++ /usr/bin/i686-w64-mingw32-g++-posix
-
-          echo "=== Toolchain in use ==="
-          which i686-w64-mingw32-g++
           i686-w64-mingw32-g++ --version
-
           echo "=== Sanity check: std::mutex compiles ==="
           cat > /tmp/mutex_test.cpp <<'CPP'
           #include <mutex>
@@ -118,8 +125,8 @@ jobs:
           i686-w64-mingw32-g++ -std=c++17 /tmp/mutex_test.cpp -c -o /tmp/mutex_test.o
           echo "OK: std::mutex works."
 
-      # Rolling cache: unique key per run so the save always lands, with a prefix
-      # restore-key so we inherit the most recent previous run's cache.
+      # Rolling cache, keyed per config so no two bit-widths ever share generated
+      # headers or objects.
       - name: Restore SCons Cache
         uses: actions/cache/restore@v6
         with:
@@ -134,14 +141,28 @@ jobs:
           SCONS_CACHE: ${{ env.SCONS_CACHE_DIR }}
         run: |
           set -euo pipefail
-          for target in template_debug template_release; do
-            for combo in windows:x86_32 android:x86_64; do
-              platform="${combo%%:*}"
-              arch="${combo##*:}"
-              echo "::group::scons platform=$platform arch=$arch target=$target"
-              scons target="$target" platform="$platform" arch="$arch" debug_symbols=no -j4
-              echo "::endgroup::"
-            done
+          scons target=${{ matrix.target }} platform=${{ matrix.config.platform }} arch=${{ matrix.config.arch }} debug_symbols=no -j4
+
+      # Guards the bug this job's shape exists to avoid: a mis-generated binding
+      # set yields a library whose word size disagrees with its arch, and that only
+      # shows up as a segfault on the target device. Fail here instead.
+      - name: Verify Architecture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd project/addons/terrain_3d/bin
+          ls -l
+          for f in *; do
+            [ -f "$f" ] || continue
+            case "$f" in *.a) continue ;; esac
+            desc=$(file -b "$f")
+            echo "$f: $desc"
+            case "${{ matrix.config.arch }}" in
+              *64)
+                echo "$desc" | grep -q "64-bit" || { echo "::error::$f is not 64-bit"; exit 1; } ;;
+              *32)
+                echo "$desc" | grep -q "32-bit" || { echo "::error::$f is not 32-bit"; exit 1; } ;;
+            esac
           done
 
       # Drop the least-recently-modified entries until under the cap.
@@ -161,9 +182,7 @@ jobs:
 
           if [ "$total_mb" -gt "$limit_mb" ]; then
             need=$(( (total_mb - limit_mb) * 1048576 ))
-            awk -F'\t' -v need="$need" \
-              '{ if (freed < need) { print $3; freed += $2 } }' "$list" \
-              | tr '\n' '\0' | xargs -0 -r rm -f
+            awk -F'\t' -v need="$need" '{ if (freed < need) { print $3; freed += $2 } }' "$list" | tr '\n' '\0' | xargs -0 -r rm -f
             echo "trimmed to $(du -sm "$dir" | cut -f1) MB"
           fi
           rm -f "$list"
@@ -176,18 +195,14 @@ jobs:
           path: ${{ env.SCONS_CACHE_DIR }}
           key: ${{ env.CACHE_NAME }}-${{ github.run_id }}
 
-      # Mirrors upstream's build-artifact action so the artifact layout matches
-      # the ones build.yml produces.
+      # Mirrors upstream's build-artifact action so the merge below folds every
+      # platform into one addon folder.
       - name: Prepare Files
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== Built binaries ==="
-          ls -l project/addons/terrain_3d/bin/
           rm -v project/*.* || true
-          cp -v "${{ github.workspace }}/README.md" \
-                "${{ github.workspace }}/LICENSE.txt" \
-                "${{ github.workspace }}/project/addons/terrain_3d/"
+          cp -v "${{ github.workspace }}/README.md" "${{ github.workspace }}/LICENSE.txt" "${{ github.workspace }}/project/addons/terrain_3d/"
 
       - name: Upload Package
         uses: actions/upload-artifact@v7
