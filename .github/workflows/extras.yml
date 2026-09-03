@@ -6,12 +6,21 @@
 # composite actions under .github/actions/ -- those are kept byte-identical to
 # upstream so `git merge upstream/main` stays clean.
 #
-# Builds the artifacts upstream does not, in a SINGLE job so both binaries land in
-# one addon folder and upload as one ready-to-drop-in artifact:
-#   - Windows x86_32   (upstream builds x86_64 + arm64 only)
-#   - Android x86_64   (upstream builds arm64 + arm32 only)
+# Produces every library Erios ships, web excluded, as ONE drop-in artifact:
 #
-# Both targets (debug + release) are built for each. godot-cpp object files are
+#   from upstream's reusable workflows, called unmodified
+#     windows  x86_64, arm64      linux  x86_64
+#     android  arm64, arm32       macos  universal      ios  universal
+#   from the fork-local `gaps` job
+#     windows  x86_32             android  x86_64
+#
+# Web is deliberately not built: Erios does not export for it. Upstream's own
+# build.yml still builds every platform including web, on pull_request and
+# workflow_dispatch; this workflow is the push-to-main path and merges into a
+# differently named artifact, so the two never collide.
+#
+# `gaps` builds both targets (debug + release) for each of its two configs.
+# godot-cpp object files are
 # named per platform.target.arch, so nothing is shared between the four configs --
 # a cold run compiles the binding set four times over, ~25 min. The SCons cache
 # below is what keeps subsequent runs short, so it is deliberately NOT upstream's
@@ -20,7 +29,7 @@
 # rolls per run and the save is unconditional, so each run starts from the
 # previous run's cache and only recompiles what actually changed.
 
-name: 🧩 Other Artifacts
+name: 🧩 All Platforms Except Web
 on:
   push:
     branches: [ main ]
@@ -39,7 +48,29 @@ env:
   CACHE_LIMIT_MB: 1500
 
 jobs:
-  build:
+  # --- Upstream's matrices, reused as-is -------------------------------------
+  windows:
+    name: 🪟 Windows
+    uses: ./.github/workflows/windows.yml
+
+  linux:
+    name: 🐧 Linux
+    uses: ./.github/workflows/linux.yml
+
+  android:
+    name: 🤖 Android
+    uses: ./.github/workflows/android.yml
+
+  macos:
+    name: 🍎 macOS
+    uses: ./.github/workflows/macos.yml
+
+  ios:
+    name: 🍏 iOS
+    uses: ./.github/workflows/ios.yml
+
+  # --- The two configs no upstream workflow covers ---------------------------
+  gaps:
     name: 🧩 Windows x86_32 + Android x86_64
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -164,3 +195,17 @@ jobs:
           include-hidden-files: true
           name: t3d-${{ env.CACHE_NAME }}
           path: ${{ github.workspace }}/project/
+
+  # --- One artifact holding every platform above -----------------------------
+  merge:
+    name: 📦 Merge
+    runs-on: ubuntu-24.04
+    needs: [ windows, linux, android, macos, ios, gaps ]
+    steps:
+      - name: Merge Artifacts
+        uses: actions/upload-artifact/merge@v7
+        with:
+          include-hidden-files: true
+          name: terrain3d-all-except-web
+          pattern: t3d-*
+          delete-merged: true

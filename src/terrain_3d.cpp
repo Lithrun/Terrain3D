@@ -591,12 +591,19 @@ void Terrain3D::set_region_size(const RegionSize p_size) {
 		LOG(ERROR, "Invalid region size: ", p_size, ". Must be power of 2, 64-2048");
 		return;
 	}
-	SET_IF_DIFF(_region_size, p_size);
-	LOG(INFO, "Setting region size: ", _region_size);
+	// Data must be told the size even when ours is unchanged: load_directory() runs on a fresh
+	// Terrain3DData whose _region_size is still 0, and calls this with the size it read from the
+	// first region file, which usually equals ours. An early return there leaves Data on 0.
+	const bool size_changed = differs(_region_size, p_size);
+	_region_size = p_size;
 	if (_data) {
 		_data->_region_size = _region_size;
 		_data->_region_sizev = V2I(_region_size);
 	}
+	if (!size_changed) {
+		return;
+	}
+	LOG(INFO, "Setting region size: ", _region_size);
 	if (_material.is_valid()) {
 		_material->update();
 	}
