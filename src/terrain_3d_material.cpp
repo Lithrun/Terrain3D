@@ -723,11 +723,13 @@ void Terrain3DMaterial::_update_uniforms(const RID &p_material, const uint32_t p
 		}
 	}
 
-	TypedArray<Vector2i> region_locations = data->get_region_locations();
+	// Indexed by region id, the region's layer; free layers (V2I_MAX) are never sampled
+	TypedArray<Vector2i> layer_locations = data->get_layer_locations();
 	PackedVector2Array padded_locations;
 	padded_locations.resize(_max_regions);
-	for (int i = 0; i < MIN(region_locations.size(), _max_regions); ++i) {
-		padded_locations[i] = region_locations[i];
+	for (int i = 0; i < MIN(layer_locations.size(), _max_regions); ++i) {
+		const Vector2i region_loc = layer_locations[i];
+		padded_locations[i] = (region_loc != V2I_MAX) ? Vector2(region_loc) : V2_ZERO;
 	}
 	RS->material_set_param(p_material, "_region_locations", padded_locations);
 

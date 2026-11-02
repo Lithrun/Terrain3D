@@ -45,8 +45,9 @@ private:
 	// Regions are dual indexed:
 	// 1) By `region_location:Vector2i` as the primary key. This is the only stable index
 	// so should be the main index for users.
-	// 2) By `region_id:int`. This index changes on every add/remove, depends on load order,
-	// and is not stable. It should not be relied on by users and is primarily for internal use.
+	// 2) By `region_id:int`, the region's layer in the texture arrays. This index changes on every
+	// add/remove, depends on load order, and is not stable. It should not be relied on by users and
+	// is primarily for internal use. With a `region_capacity`, a region keeps its id until removed.
 
 	// Private functions should be indexed by region_id or region_location
 	// Public functions by region_location or global_position
@@ -57,11 +58,16 @@ private:
 	Dictionary _regions; // Dict[region_location:Vector2i] -> Terrain3DRegion
 
 	// All _active_ region maps are maintained in these secondary indices.
-	// Regions are considered active if and only if they exist in `_region_locations`. The other
-	// arrays are built off of this index; its order defines region_id.
-	// The image arrays are converted to TextureArrays for the shader.
+	// Regions are considered active if and only if they exist in `_region_locations`.
+	// `_layer_locations` holds the location in each texture array layer; its order defines region_id.
+	// Without a capacity it matches `_region_locations`. With one, it has `_region_capacity` layers
+	// and V2I_MAX marks a free layer. The image arrays follow `_layer_locations` and are converted
+	// to TextureArrays for the shader.
 
 	TypedArray<Vector2i> _region_locations;
+	TypedArray<Vector2i> _layer_locations;
+	int _region_capacity = 0;
+	TypedArray<Vector2i> _pending_layers; // Regions added since the last update, to upload to their layer
 	TypedArray<Image> _height_maps;
 	TypedArray<Image> _control_maps;
 	TypedArray<Image> _color_maps;
@@ -80,6 +86,8 @@ private:
 
 	// Functions
 	void _clear();
+	void _update_layers();
+	bool _upload_layer(Terrain3DRegion *p_region, const int p_layer);
 	void _copy_paste_dfr(const Terrain3DRegion *p_src_region, const Rect2i &p_src_rect, const Rect2i &p_dst_rect, const Terrain3DRegion *p_dst_region);
 	Error _save_export_image(const MapType p_map_type, const Ref<Image> &p_img, const String &p_path, const String &p_ext) const;
 
@@ -93,6 +101,9 @@ public:
 	int get_region_count() const { return _region_locations.size(); }
 	void set_region_locations(const TypedArray<Vector2i> &p_locations);
 	TypedArray<Vector2i> get_region_locations() const { return _region_locations; }
+	TypedArray<Vector2i> get_layer_locations() const { return _layer_locations; }
+	void set_region_capacity(const int p_capacity);
+	int get_region_capacity() const { return _region_capacity; }
 	TypedArray<Terrain3DRegion> get_regions_active(const bool p_copy = false, const bool p_deep = false) const;
 	Dictionary get_regions_all() const { return _regions; }
 	PackedInt32Array get_region_map() const { return _region_map; }
@@ -127,6 +138,7 @@ public:
 	void remove_regionp(const Vector3 &p_global_position, const bool p_update = true);
 	void remove_regionl(const Vector2i &p_region_loc, const bool p_update = true);
 	void remove_region(const Ref<Terrain3DRegion> &p_region, const bool p_update = true);
+	void unload_region(const Vector2i &p_region_loc, const bool p_update = true);
 
 	// File I/O
 	void save_directory(const String &p_dir);
@@ -237,7 +249,7 @@ inline int Terrain3DData::get_region_id(const Vector2i &p_region_loc) const {
 	int map_index = get_region_map_index(p_region_loc);
 	if (map_index >= 0) {
 		int region_id = _region_map[map_index] - 1; // 0 = no region
-		if (region_id >= 0 && region_id < _region_locations.size()) {
+		if (region_id >= 0 && region_id < _layer_locations.size()) {
 			return region_id;
 		}
 	}

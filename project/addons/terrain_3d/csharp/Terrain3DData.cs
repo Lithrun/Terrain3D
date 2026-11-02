@@ -251,6 +251,10 @@ public partial class Terrain3DData : GodotObject
 		/// </summary>
 		public new static readonly StringName RegionLocations = "region_locations";
 		/// <summary>
+		/// Cached name for the 'region_capacity' member.
+		/// </summary>
+		public new static readonly StringName RegionCapacity = "region_capacity";
+		/// <summary>
 		/// Cached name for the 'height_maps' member.
 		/// </summary>
 		public new static readonly StringName HeightMaps = "height_maps";
@@ -268,6 +272,12 @@ public partial class Terrain3DData : GodotObject
 	{
 		get => Get(GDExtensionPropertyName.RegionLocations).As<Godot.Collections.Array>();
 		set => Set(GDExtensionPropertyName.RegionLocations, value);
+	}
+
+	public new long RegionCapacity
+	{
+		get => Get(GDExtensionPropertyName.RegionCapacity).As<long>();
+		set => Set(GDExtensionPropertyName.RegionCapacity, value);
 	}
 
 	public new Godot.Collections.Array HeightMaps
@@ -395,6 +405,10 @@ public partial class Terrain3DData : GodotObject
 		/// Cached name for the 'remove_region' member.
 		/// </summary>
 		public new static readonly StringName RemoveRegion = "remove_region";
+		/// <summary>
+		/// Cached name for the 'unload_region' member.
+		/// </summary>
+		public new static readonly StringName UnloadRegion = "unload_region";
 		/// <summary>
 		/// Cached name for the 'save_directory' member.
 		/// </summary>
@@ -661,6 +675,9 @@ public partial class Terrain3DData : GodotObject
 
 	public new void RemoveRegion(Terrain3DRegion region, bool update = true) => 
 		Call(GDExtensionMethodName.RemoveRegion, [region, update]);
+
+	public new void UnloadRegion(Vector2I regionLocation, bool update = true) => 
+		Call(GDExtensionMethodName.UnloadRegion, [regionLocation, update]);
 
 	public new void SaveDirectory(string directory) => 
 		Call(GDExtensionMethodName.SaveDirectory, [directory]);

@@ -248,7 +248,7 @@
 			<param index="0" name="region_location" type="Vector2i" />
 			<description>
 				Returns -1 if no region or out of bounds at the given location, otherwise returns the current region id.
-				The region_id is the index into the TextureArrays sent to the shader, and can change at any time. Gamedevs should generally index regions by location. However, this function is useful to determine if the location is a valid region.
+				The region_id is the index into the TextureArrays sent to the shader, and can change at any time. Gamedevs should generally index regions by location. However, this function is useful to determine if the location is a valid region. With a [member region_capacity], a region keeps its id until it is removed or unloaded.
 			</description>
 		</method>
 		<method name="get_region_idp" qualifiers="const">
@@ -416,7 +416,7 @@
 			<param index="0" name="region" type="Terrain3DRegion" />
 			<param index="1" name="update" type="bool" default="true" />
 			<description>
-				Marks the specified region as deleted. This deactivates it so it won't render it on screen once maps are updated, unless marked not deleted. The file will be deleted from disk upon saving.
+				Marks the specified region as deleted. This deactivates it so it won't render it on screen once maps are updated, unless marked not deleted. The file will be deleted from disk upon saving. To stream a region out instead, use [method unload_region].
 			</description>
 		</method>
 		<method name="remove_regionl">
@@ -584,6 +584,15 @@
 				Sets the roughness modifier (wetness) on the color map alpha channel associated with the specified position. See [method set_pixel] for important information.
 			</description>
 		</method>
+		<method name="unload_region">
+			<return type="void" />
+			<param index="0" name="region_location" type="Vector2i" />
+			<param index="1" name="update" type="bool" default="true" />
+			<description>
+				Drops the region at the specified location from memory. Unlike [method remove_region], it is not marked deleted, so saving never removes its file and it can be added again later. Use it to stream regions in and out with [member region_capacity].
+				- update - updates the maps if true. Set to false when unloading many regions, then call [method update_maps] with all_regions false.
+			</description>
+		</method>
 		<method name="update_maps">
 			<return type="void" />
 			<param index="0" name="map_type" type="int" enum="Terrain3DRegion.MapType" default="3" />
@@ -593,7 +602,7 @@
 				Regenerates the region map and the TextureArrays that combine the requested map types. This function needs to be called after editing any of the maps.
 				By default, this function rebuilds all maps for all regions.
 				- map_type - Regenerate only maps of this type.
-				- all_regions - Regenerate all regions if true, otherwise only those marked with [member Terrain3DRegion.edited].
+				- all_regions - Regenerate all regions if true, otherwise only those marked with [member Terrain3DRegion.edited]. With a [member region_capacity], false also uploads regions added since the last update into free layers and frees the layers of removed ones.
 				- generate_mipmaps - Regenerate mipmaps if map_type is color or all (max), for the regions specified above. This can also be done on individual regions before calling this function with [code skip-lint]region.get_color_map().generate_mipmaps()[/code].
 				For frequent editing, rather than enabling all_regions, it is more optimal to only update changed regions as follows:
 				[codeblock]
@@ -640,6 +649,10 @@
 		</member>
 		<member name="height_maps" type="Image[]" setter="" getter="get_height_maps" default="[]">
 			An Array[lb]Image[rb] containing references to all of the height maps in all regions. See [member Terrain3DRegion.height_map].
+		</member>
+		<member name="region_capacity" type="int" setter="set_region_capacity" getter="get_region_capacity" default="0">
+			The number of layers kept in the TextureArrays, for streaming regions in and out. 0, the default, sizes the arrays to the active regions and rebuilds them whenever one is added or removed.
+			Above 0, the arrays keep this many layers and each region keeps its layer until it is removed or unloaded. Adding or removing regions with update enabled, or calling [method update_maps] with all_regions false, then uploads only the regions added, so GPU memory stays fixed and a change costs one region's upload. Exceeding it rebuilds all maps on every change. Keep it at or below [member Terrain3DMaterial.max_regions].
 		</member>
 		<member name="region_locations" type="Vector2i[]" setter="set_region_locations" getter="get_region_locations" default="[]">
 			The array of all active region locations; those not marked for deletion.

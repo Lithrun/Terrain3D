@@ -21,6 +21,8 @@ void Terrain3DData::_clear() {
 	_region_map.resize(REGION_MAP_SIZE * REGION_MAP_SIZE);
 	_regions.clear();
 	_region_locations.clear();
+	_layer_locations.clear();
+	_pending_layers.clear();
 	_master_height_range = V2_ZERO;
 	_generated_height_maps.clear();
 	_generated_control_maps.clear();
@@ -321,9 +323,12 @@ Error Terrain3DData::add_region(const Ref<Terrain3DRegion> &p_region, const bool
 	}
 	_regions[region_loc] = p_region;
 	_region_map_dirty = true;
+	if (_region_capacity > 0 && !_pending_layers.has(region_loc)) {
+		_pending_layers.push_back(region_loc);
+	}
 	LOG(DEBUG, "Storing region ", region_loc, " version ", vformat("%.3f", p_region->get_version()), " id: ", _region_locations.size());
 	if (p_update) {
-		update_maps(TYPE_MAX, true, false);
+		update_maps(TYPE_MAX, _region_capacity == 0, false);
 		_terrain->get_instancer()->update_mmis(-1, V2I_MAX, true);
 	}
 	return OK;
@@ -360,7 +365,31 @@ void Terrain3DData::remove_region(const Ref<Terrain3DRegion> &p_region, const bo
 	LOG(DEBUG, "Removing from region_locations, new size: ", _region_locations.size());
 	if (p_update) {
 		LOG(DEBUG, "Updating generated maps");
-		update_maps(TYPE_MAX, true, false);
+		update_maps(TYPE_MAX, _region_capacity == 0, false);
+		_terrain->get_instancer()->update_mmis(-1, V2I_MAX, true);
+	}
+}
+
+// Drops the region from memory without marking it deleted, so saving never removes its file.
+// Use it to stream regions out; use remove_region() to delete one.
+void Terrain3DData::unload_region(const Vector2i &p_region_loc, const bool p_update) {
+	if (!_regions.has(p_region_loc)) {
+		LOG(ERROR, "No region loaded at ", p_region_loc);
+		return;
+	}
+	LOG(INFO, "Unloading region ", p_region_loc, ", update maps: ", p_update ? "yes" : "no");
+	_regions.erase(p_region_loc);
+	int index = _region_locations.find(p_region_loc);
+	if (index >= 0) {
+		_region_locations.remove_at(index);
+	}
+	index = _pending_layers.find(p_region_loc);
+	if (index >= 0) {
+		_pending_layers.remove_at(index);
+	}
+	_region_map_dirty = true;
+	if (p_update) {
+		update_maps(TYPE_MAX, _region_capacity == 0, false);
 		_terrain->get_instancer()->update_mmis(-1, V2I_MAX, true);
 	}
 }
@@ -531,10 +560,24 @@ void Terrain3DData::update_maps(const MapType p_map_type, const bool p_all_regio
 		}
 	}
 
+	// With a capacity, added and removed regions update their own layers. Without arrays to update
+	// in place, or when asked to, all of them are rebuilt
+	bool all_regions = p_all_regions;
+	MapType map_type = p_map_type;
+	if (_region_capacity > 0 && _region_map_dirty) {
+		if (!all_regions && _generated_height_maps.get_rid().is_valid() &&
+				_generated_control_maps.get_rid().is_valid() && _generated_color_maps.get_rid().is_valid()) {
+			_update_layers();
+			return;
+		}
+		all_regions = true;
+		map_type = TYPE_MAX;
+	}
+
 	// Mark texture arrays dirty for rebuilding
-	if (p_all_regions) {
-		LOG(EXTREME, "Marking dirty maps of type: ", p_map_type);
-		switch (p_map_type) {
+	if (all_regions) {
+		LOG(EXTREME, "Marking dirty maps of type: ", map_type);
+		switch (map_type) {
 			case TYPE_HEIGHT:
 				_generated_height_maps.clear();
 				break;
@@ -562,28 +605,51 @@ void Terrain3DData::update_maps(const MapType p_map_type, const bool p_all_regio
 		_region_map.resize(REGION_MAP_SIZE * REGION_MAP_SIZE);
 		_region_map_dirty = false;
 		_region_locations = TypedArray<Vector2i>(); // enforce new pointer
-		int region_id = 0;
 		for (const Vector2i &region_loc : _regions.keys()) {
 			const Terrain3DRegion *region = get_region_ptr(region_loc);
-			if (region && !region->is_deleted()) {
-				region_id += 1; // Begin at 1 since 0 = no region
-				int map_index = get_region_map_index(region_loc);
-				if (map_index >= 0) {
-					_region_map[map_index] = region_id;
-					_region_locations.push_back(region_loc);
-				}
+			if (region && !region->is_deleted() && get_region_map_index(region_loc) >= 0) {
+				_region_locations.push_back(region_loc);
 			}
 		}
+		// Active regions fill the first layers; a capacity adds free layers after them
+		int layer_count = _region_locations.size();
+		if (_region_capacity > 0 && layer_count > 0) {
+			if (layer_count > _region_capacity) {
+				LOG(WARN, layer_count, " active regions exceed region_capacity ", _region_capacity,
+						". Every region change rebuilds all maps until it is raised");
+			}
+			layer_count = MAX(layer_count, _region_capacity);
+		}
+		_layer_locations = TypedArray<Vector2i>();
+		_layer_locations.resize(layer_count);
+		for (int i = 0; i < layer_count; i++) {
+			Vector2i region_loc = (i < _region_locations.size()) ? Vector2i(_region_locations[i]) : V2I_MAX;
+			_layer_locations[i] = region_loc;
+			if (region_loc != V2I_MAX) {
+				_region_map[get_region_map_index(region_loc)] = i + 1; // Begin at 1 since 0 = no region
+			}
+		}
+		_pending_layers.clear();
 		any_changed = true;
 		LOG(DEBUG, "Emitting region_map_changed");
 		emit_signal("region_map_changed");
+	}
+
+	// A free layer is never sampled, so it holds the maps of the first active region
+	Vector2i filler_loc = V2I_MAX;
+	for (const Vector2i &region_loc : _layer_locations) {
+		if (region_loc != V2I_MAX) {
+			filler_loc = region_loc;
+			break;
+		}
 	}
 
 	// Rebuild height maps if dirty
 	if (_generated_height_maps.is_dirty()) {
 		LOG(EXTREME, "Regenerating height texture array from regions");
 		_height_maps.clear();
-		for (const Vector2i &region_loc : _region_locations) {
+		for (const Vector2i &layer_loc : _layer_locations) {
+			const Vector2i region_loc = (layer_loc != V2I_MAX) ? layer_loc : filler_loc;
 			const Terrain3DRegion *region = get_region_ptr(region_loc);
 			if (region) {
 				_height_maps.push_back(region->get_height_map());
@@ -604,8 +670,8 @@ void Terrain3DData::update_maps(const MapType p_map_type, const bool p_all_regio
 	if (_generated_control_maps.is_dirty()) {
 		LOG(EXTREME, "Regenerating control texture array from regions");
 		_control_maps.clear();
-		for (const Vector2i &region_loc : _region_locations) {
-			const Terrain3DRegion *region = get_region_ptr(region_loc);
+		for (const Vector2i &layer_loc : _layer_locations) {
+			const Terrain3DRegion *region = get_region_ptr((layer_loc != V2I_MAX) ? layer_loc : filler_loc);
 			if (region) {
 				_control_maps.push_back(region->get_control_map());
 			}
@@ -620,7 +686,8 @@ void Terrain3DData::update_maps(const MapType p_map_type, const bool p_all_regio
 	if (_generated_color_maps.is_dirty()) {
 		LOG(EXTREME, "Regenerating color texture array from regions");
 		_color_maps.clear();
-		for (const Vector2i &region_loc : _region_locations) {
+		for (const Vector2i &layer_loc : _layer_locations) {
+			const Vector2i region_loc = (layer_loc != V2I_MAX) ? layer_loc : filler_loc;
 			const Terrain3DRegion *region = get_region_ptr(region_loc);
 			if (region) {
 				Ref<Image> map = region->get_active_color_map();
@@ -679,6 +746,126 @@ void Terrain3DData::update_maps(const MapType p_map_type, const bool p_all_regio
 		LOG(DEBUG, "Emitting maps_changed");
 		emit_signal("maps_changed");
 		_terrain->snap();
+	}
+}
+
+// Moves region changes into the texture arrays in place: removed regions free their layer, added
+// regions are uploaded to the lowest free one and edited ones to their own, so every other region
+// keeps its layer and is not uploaded again.
+void Terrain3DData::_update_layers() {
+	LOG(EXTREME, "Updating texture array layers in place");
+	_region_map_dirty = false;
+	_region_map.fill(0);
+	for (int i = 0; i < _layer_locations.size(); i++) {
+		const Vector2i region_loc = _layer_locations[i];
+		if (region_loc == V2I_MAX) {
+			continue;
+		}
+		const Terrain3DRegion *region = get_region_ptr(region_loc);
+		if (region && !region->is_deleted()) {
+			_region_map[get_region_map_index(region_loc)] = i + 1;
+		} else {
+			_layer_locations[i] = V2I_MAX;
+		}
+	}
+
+	int free_layer = 0;
+	for (const Vector2i &region_loc : _regions.keys()) {
+		Terrain3DRegion *region = get_region_ptr(region_loc);
+		const int map_index = get_region_map_index(region_loc);
+		if (!region || region->is_deleted() || map_index < 0) {
+			continue;
+		}
+		int layer = _region_map[map_index] - 1;
+		if (layer >= 0 && !_pending_layers.has(region_loc) && !region->is_edited()) {
+			continue;
+		}
+		if (layer < 0) {
+			while (free_layer < _layer_locations.size() && Vector2i(_layer_locations[free_layer]) != V2I_MAX) {
+				free_layer++;
+			}
+			if (free_layer >= _layer_locations.size()) {
+				LOG(WARN, "More active regions than region_capacity ", _region_capacity, ". Rebuilding all maps");
+				update_maps(TYPE_MAX, true, false);
+				return;
+			}
+			layer = free_layer;
+			_layer_locations[layer] = region_loc;
+			_region_map[map_index] = layer + 1;
+		}
+		if (!_upload_layer(region, layer)) {
+			update_maps(TYPE_MAX, true, false);
+			return;
+		}
+	}
+	_pending_layers.clear();
+
+	_region_locations = TypedArray<Vector2i>(); // enforce new pointer
+	for (const Vector2i &region_loc : _layer_locations) {
+		if (region_loc != V2I_MAX) {
+			_region_locations.push_back(region_loc);
+		}
+	}
+	if (_region_locations.is_empty()) {
+		update_maps(TYPE_MAX, true, false);
+		return;
+	}
+	// Free layers drop the images of the regions that left, so their memory is released
+	const Terrain3DRegion *filler = get_region_ptr(Vector2i(_region_locations[0]));
+	for (int i = 0; i < _layer_locations.size(); i++) {
+		if (Vector2i(_layer_locations[i]) == V2I_MAX) {
+			_height_maps[i] = filler->get_height_map();
+			_control_maps[i] = filler->get_control_map();
+			_color_maps[i] = filler->get_active_color_map();
+		}
+	}
+
+	calc_height_range();
+	LOG(DEBUG, "Emitting region_map_changed, height_maps_changed, control_maps_changed, color_maps_changed, maps_changed");
+	emit_signal("region_map_changed");
+	emit_signal("height_maps_changed");
+	emit_signal("control_maps_changed");
+	emit_signal("color_maps_changed");
+	emit_signal("maps_changed");
+	_terrain->snap();
+}
+
+// Writes the region's maps into one layer of each texture array
+bool Terrain3DData::_upload_layer(Terrain3DRegion *p_region, const int p_layer) {
+	const Ref<Image> height_map = p_region->get_height_map();
+	const Ref<Image> control_map = p_region->get_control_map();
+	const Ref<Image> color_map = p_region->get_active_color_map();
+	// A layer must match the array's mipmaps; regions saved without color mipmaps get them here
+	if (color_map.is_valid() && !color_map->is_compressed() && !color_map->has_mipmaps() &&
+			_generated_color_maps.has_layer_mipmaps()) {
+		color_map->generate_mipmaps();
+	}
+	if (!_generated_height_maps.fits_layer(height_map) || !_generated_control_maps.fits_layer(control_map) ||
+			!_generated_color_maps.fits_layer(color_map)) {
+		LOG(WARN, "Region ", p_region->get_location(), " maps differ from the texture arrays in size, format or mipmaps. Rebuilding all maps");
+		return false;
+	}
+	LOG(DEBUG, "Uploading region ", p_region->get_location(), " to layer ", p_layer);
+	_generated_height_maps.update(height_map, p_layer);
+	_generated_control_maps.update(control_map, p_layer);
+	_generated_color_maps.update(color_map, p_layer);
+	_height_maps[p_layer] = height_map;
+	_control_maps[p_layer] = control_map;
+	_color_maps[p_layer] = color_map;
+	return true;
+}
+
+void Terrain3DData::set_region_capacity(const int p_capacity) {
+	SET_IF_DIFF(_region_capacity, CLAMP(p_capacity, 0, REGION_MAP_SIZE * REGION_MAP_SIZE));
+	LOG(INFO, "Setting region capacity: ", _region_capacity);
+	_pending_layers.clear();
+	if (_terrain && _terrain->get_material().is_valid() &&
+			_region_capacity > int(_terrain->get_material()->get_max_regions())) {
+		LOG(WARN, "region_capacity ", _region_capacity, " exceeds Terrain3DMaterial.max_regions ",
+				int(_terrain->get_material()->get_max_regions()), ". Layers above it will not render");
+	}
+	if (_terrain && !_regions.is_empty()) {
+		update_maps(TYPE_MAX, true, false);
 	}
 }
 
@@ -1399,6 +1586,8 @@ void Terrain3DData::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_region_count"), &Terrain3DData::get_region_count);
 	ClassDB::bind_method(D_METHOD("set_region_locations", "region_locations"), &Terrain3DData::set_region_locations);
 	ClassDB::bind_method(D_METHOD("get_region_locations"), &Terrain3DData::get_region_locations);
+	ClassDB::bind_method(D_METHOD("set_region_capacity", "capacity"), &Terrain3DData::set_region_capacity);
+	ClassDB::bind_method(D_METHOD("get_region_capacity"), &Terrain3DData::get_region_capacity);
 	ClassDB::bind_method(D_METHOD("get_regions_active", "copy", "deep"), &Terrain3DData::get_regions_active, DEFVAL(false), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("get_regions_all"), &Terrain3DData::get_regions_all);
 	ClassDB::bind_method(D_METHOD("get_region_map"), &Terrain3DData::get_region_map);
@@ -1431,6 +1620,7 @@ void Terrain3DData::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("remove_regionp", "global_position", "update"), &Terrain3DData::remove_regionp, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("remove_regionl", "region_location", "update"), &Terrain3DData::remove_regionl, DEFVAL(true));
 	ClassDB::bind_method(D_METHOD("remove_region", "region", "update"), &Terrain3DData::remove_region, DEFVAL(true));
+	ClassDB::bind_method(D_METHOD("unload_region", "region_location", "update"), &Terrain3DData::unload_region, DEFVAL(true));
 
 	ClassDB::bind_method(D_METHOD("save_directory", "directory"), &Terrain3DData::save_directory);
 	ClassDB::bind_method(D_METHOD("save_region", "region_location", "directory", "save_16_bit", "color_compress_mode"), &Terrain3DData::save_region, DEFVAL(""), DEFVAL(false), DEFVAL(COMPRESS_NONE));
@@ -1496,6 +1686,7 @@ void Terrain3DData::_bind_methods() {
 
 	int ro_flags = PROPERTY_USAGE_EDITOR | PROPERTY_USAGE_READ_ONLY;
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "region_locations", PROPERTY_HINT_ARRAY_TYPE, "Vector2i", ro_flags), "set_region_locations", "get_region_locations");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "region_capacity", PROPERTY_HINT_RANGE, "0,1024", PROPERTY_USAGE_EDITOR), "set_region_capacity", "get_region_capacity");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "height_maps", PROPERTY_HINT_ARRAY_TYPE, "Image", ro_flags), "", "get_height_maps");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "control_maps", PROPERTY_HINT_ARRAY_TYPE, "Image", ro_flags), "", "get_control_maps");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "color_maps", PROPERTY_HINT_ARRAY_TYPE, "Image", ro_flags), "", "get_color_maps");

@@ -22,6 +22,9 @@ void GeneratedTexture::clear() {
 	_rid = RID();
 	_dirty = true;
 	_size = 0;
+	_layer_size = V2I_ZERO;
+	_layer_format = Image::FORMAT_MAX;
+	_layer_mipmaps = false;
 }
 
 RID GeneratedTexture::create(const TypedArray<Image> &p_layers) {
@@ -36,6 +39,12 @@ RID GeneratedTexture::create(const TypedArray<Image> &p_layers) {
 		_rid = RS->texture_2d_layered_create(p_layers, RenderingServer::TEXTURE_LAYERED_2D_ARRAY);
 		_dirty = false;
 		_size = p_layers.size();
+		Ref<Image> first = p_layers[0];
+		if (first.is_valid()) {
+			_layer_size = first->get_size();
+			_layer_format = first->get_format();
+			_layer_mipmaps = first->has_mipmaps();
+		}
 	} else {
 		clear();
 	}
@@ -45,6 +54,12 @@ RID GeneratedTexture::create(const TypedArray<Image> &p_layers) {
 void GeneratedTexture::update(const Ref<Image> &p_image, const int p_layer) {
 	LOG(EXTREME, "RenderingServer updating Texture2DArray at index: ", p_layer);
 	RS->texture_2d_update(_rid, p_image, p_layer);
+}
+
+// True if the image can replace a layer of the texture array in place
+bool GeneratedTexture::fits_layer(const Ref<Image> &p_image) const {
+	return _rid.is_valid() && p_image.is_valid() && !p_image->is_empty() && p_image->get_size() == _layer_size &&
+			p_image->get_format() == _layer_format && p_image->has_mipmaps() == _layer_mipmaps;
 }
 
 RID GeneratedTexture::create(const Ref<Image> &p_image) {
