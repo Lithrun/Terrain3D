@@ -4,7 +4,7 @@ We need your help to make this the best terrain plugin for Godot.
 
 Please see [System Architecture](system_architecture.md) to gain an understanding of how the system works. Then review the [roadmap](https://github.com/users/TokisanGames/projects/3) for priority of issues.
 
-If you wish to take on a major component, it's best to join our [discord server](https://tokisan.com/discord) and discuss your plans in #terrain-dev to make sure your efforts are aligned with other plans.
+If you wish to take on a major component, it's best to join our [discord server](https://tokisan.com/discord) and discuss your plans in #terrain-dev to make sure your efforts are aligned with other current plans.
 
 **Table of Contents**
 * [Important Directories](#important-directories)
@@ -32,47 +32,42 @@ If you wish to take on a major component, it's best to join our [discord server]
 
 Make sure you are setup to [build the plugin from source](building_from_source.md). 
 
-### Install clang-format
+### Install clang-format hook
 
-clang-format will adjust the style of your code to a consistent standard. Once you install it you can manually run it on all of your code to see or apply changes, and you can set it up to run automatically upon each commit.
-
-If upgrading from an older version, delete everything in `.git/hooks/`.
-
-#### Installing clang-format binary onto your system.
-* Download LLVM version 21.1.7 or later
-	* Linux/OSX: Install the `clang-format` package, or all of `LLVM` or `clang` if your distribution doesn't provide the standalone tool
-	* Windows: Download LLVM for Windows from <https://releases.llvm.org/download.html>
-
-* Make sure the LLVM binary directory where `clang-format` is stored gets added to the `PATH` during installation
-
-#### Using clang-format on commit via hooks
-
-Install pre-commit. After this, clang-format will be run on every commit. It will print a failure if it makes changes to files so you can review them.
+When committing changes, the pre-commit hook will run clang-format to adjust the style of your code to a consistent standard. Installing the clang-format binary is unnecessary as pip will do it automatically.
 
 ```
-pip install pre-commit
+pip install pre-commit # or: python -m pip install --user pre-commit
 pre-commit install
 ```
 
+Git will then run `.pre-commit-config.yaml` and `.clang-format` to verify staged changes before committing. Files that need formatting will be changed and an error will prevent the commit so you can review the changes and commit again if approved.
+
+
 #### Using clang-format manually
 
-* View a formatted file, no changes on disk: `clang-format <filenames>`
-* See what changes would be made: `git-clang-format --diff <filenames>`
-* Change the files in place: `clang-format -i <filenames>`
+```
+# format staged files only
+pre-commit run clang-format
 
- 
+# format everything
+pre-commit run clang-format --all-files
+```
+
 ## PR Workflow
 
-We use the standard [Godot PR workflow](https://contributing.godotengine.org/en/latest/organization/pull_requests/creating_pull_requests.html). Please submit PRs according to the same process Godot uses.
+* Create a fork and check that out locally.
+* Create a new branch in your fork and commit your changes to it. Don't use `main`.
+* Generally, make one commit per distinct feature, fix, or updating docs. Keep fixes minimal.
+* Create a PR on the TokisanGames/Terrain3D repo, `main` branch from your fork and branch.
 
-This includes: 
-* Creating a new branch (not main) before submitting the PR.
-* Never using git merge, or the `sync` button. Only fetch, push, pull.
+To update old PRs with new changes:
+* Never use git merge, or the `sync` button on Github Desktop. Only use fetch, push, or pull.
 * To update your PR to the latest main, rebase it then force push into your branch.
   * `git pull --rebase upstream main`
   * `git push -f`
 
-Read the guide above for more details.
+We use the standard [Godot PR workflow](https://contributing.godotengine.org/en/latest/development/workflows/creating_pull_requests.html). Please review this page for full details and submit PRs according to this process.
 
 
 ## Code Style
@@ -92,7 +87,7 @@ In addition:
 
 ### C++
 
-In general, follow the [Godot C++ style guidelines](https://contributing.godotengine.org/en/latest/engine/guidelines/code_style.html).
+In general, follow the [Godot C++ style guidelines](https://contributing.godotengine.org/en/latest/development/engine/cpp_usage_guidelines.html).
 In addition:
 
 Use const correctness:
@@ -169,4 +164,4 @@ This step isn't required for contributors. You may ask for help generating the X
 5. Push your updates to the Markdown, XML, and RST files to the repository. Due to the nature of generation scripts, carefully review the changes so you only push those you intend.
 6. Readthedocs will detect commits to the main tree and will build the online html docs from the Markdown and RST files.
 
-Doc generation via Sphinx is configured by conf.py and requirements.txt. Readthedocs also reads .readthedocs.yaml. The website is configured to automatically build based on specifically chosen branches and tags. `latest` is `main`. `stable` is a tag that we must manually update to point to the latest stable commit.
+Doc generation via Sphinx is configured by conf.py and requirements.txt. Readthedocs also reads .readthedocs.yaml. The website is configured to automatically build based on specifically chosen branches and tags. `latest` is `main`. `stable` should automatically find the commit from the latest stable release.

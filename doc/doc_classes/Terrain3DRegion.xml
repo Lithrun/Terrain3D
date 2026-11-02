@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="Terrain3DRegion" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+<class name="Terrain3DRegion" inherits="Resource" api_type="extension" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -20,6 +20,25 @@
 				Unreferences the maps and resets all member variables to default values.
 			</description>
 		</method>
+		<method name="clear_color_map">
+			<return type="void" />
+			<description>
+				Clears the uncompressed color map. Does not mark the region modified.
+			</description>
+		</method>
+		<method name="clear_compressed_color_map">
+			<return type="void" />
+			<description>
+				Clears the compressed color map. Does not mark the region modified.
+			</description>
+		</method>
+		<method name="compress_color_map" experimental="This function is experimental.">
+			<return type="void" />
+			<param index="0" name="mode" type="int" enum="CompressMode" />
+			<description>
+				Compresses the color map with the specified compression mode. Compression only works in the editor, not at runtime.
+			</description>
+		</method>
 		<method name="dump" qualifiers="const">
 			<return type="void" />
 			<param index="0" name="verbose" type="bool" default="false" />
@@ -27,12 +46,10 @@
 				Dumps information about the data in the region, including instance IDs, counts, and data pointers.
 			</description>
 		</method>
-		<method name="duplicate_region">
-			<return type="Terrain3DRegion" />
-			<param index="0" name="deep" type="bool" default="false" />
+		<method name="get_active_color_map" qualifiers="const">
+			<return type="Image" />
 			<description>
-				Returns a duplicate copy of this node, with references to the same image maps and multimeshes.
-				- deep - Also make complete duplicates of the maps and multimeshes.
+				Returns the compressed color map if valid, otherwise returns the uncompressed map.
 			</description>
 		</method>
 		<method name="get_data" qualifiers="const">
@@ -45,13 +62,19 @@
 			<return type="Image" />
 			<param index="0" name="map_type" type="int" enum="Terrain3DRegion.MapType" />
 			<description>
-				Returns the specified image map.
+				Returns the specified image map. Returns the compressed color map if requested and valid.
 			</description>
 		</method>
 		<method name="get_maps" qualifiers="const">
 			<return type="Image[]" />
 			<description>
-				Returns an Array[Image] with height, control, and color maps.
+				Returns an Array[lb]Image[rb] with height, control, and color maps. Returns the compressed color map if valid.
+			</description>
+		</method>
+		<method name="is_color_compressed" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Returns true if the compressed color map is valid.
 			</description>
 		</method>
 		<method name="sanitize_map" qualifiers="const">
@@ -72,10 +95,12 @@
 			<return type="int" enum="Error" />
 			<param index="0" name="path" type="String" default="&quot;&quot;" />
 			<param index="1" name="save_16_bit" type="bool" default="false" />
+			<param index="2" name="color_compress_mode" type="int" enum="CompressMode" default="5" />
 			<description>
 				Saves this region to the current file name.
 				- path - specifies a directory and file name to use from now on.
-				- 16-bit - save this region with 16-bit height map instead of 32-bit. This process is lossy. Does not change the bit depth in memory.
+				- 16-bit - saves this region with 16-bit height map instead of 32-bit. This process is lossy. Does not change the bit depth in memory.
+				- color_compress_mode - compresses the color map on save. Only works in the editor.
 			</description>
 		</method>
 		<method name="set_data">
@@ -124,20 +149,27 @@
 	</methods>
 	<members>
 		<member name="color_map" type="Image" setter="set_color_map" getter="get_color_map">
-			This map is used to paint color that blends in to the terrain textures.
+			This map stores wetness that modifies texture roughness and color that is multipled into the terrain textures.
+			[code skip-lint]get_color_map()[/code] returns the uncompressed map, only.
+			In game, this map will be cleared if [member Terrain3D.color_compress_mode] is set and [member Terrain3D.keep_uncompressed_color] is not.
 			Image format: FORMAT_RGBA8, 32-bits per pixel as four 8-bit components.
 			[b]RGB[/b] is used for color, which is multiplied by albedo in the shader. Multiply is a blend mode that only darkens.
 			[b]A[/b] is used for a roughness modifier. A value of 0.5 means no change to the existing texture roughness. Higher than this value increases roughness, lower decreases it.
+		</member>
+		<member name="compressed_color_map" type="Image" setter="set_compressed_color_map" getter="get_compressed_color_map" experimental="This function is experimental.">
+			This is the compressed version of the [member color_map].
+			In editor, it will be cleared and will be regenerated upon save if the region is modified or [member Terrain3D.color_compress_mode] is set differently than what is stored on disk.
+			In game, this map will be used by the renderer if available. The compressed color map cannot be read or written to per pixel, so if you want to edit or read it at runtime, disable color compression or use [member Terrain3D.keep_uncompressed_color].
 		</member>
 		<member name="control_map" type="Image" setter="set_control_map" getter="get_control_map">
 			This map tells the shader which textures to use where, how to blend, where to place holes, etc.
 			Image format: FORMAT_RF, 32-bit per pixel as full-precision floating-point.
 			However, we interpret these images as format: [url=https://docs.godotengine.org/en/stable/classes/class_renderingdevice.html#class-renderingdevice-constant-data-format-r32-uint]RenderingDevice.DATA_FORMAT_R32_UINT[/url] aka OpenGL RG32UI 32-bit per pixel as unsigned integer. See [url=https://terrain3d.readthedocs.io/en/stable/docs/controlmap_format.html]Control map format[/url].
 		</member>
-		<member name="deleted" type="bool" setter="set_deleted" getter="is_deleted">
+		<member name="deleted" type="bool" setter="set_deleted" getter="is_deleted" default="false">
 			This region is marked for deletion. It won't be rendered once [method Terrain3DData.update_maps] rebuilds the map index. The file will be deleted from disk on [method save].
 		</member>
-		<member name="edited" type="bool" setter="set_edited" getter="is_edited">
+		<member name="edited" type="bool" setter="set_edited" getter="is_edited" default="false">
 			This region is marked for updating by [method Terrain3DData.update_maps] and for undo/redo tracking when set between [method Terrain3DEditor.start_operation] and [method Terrain3DEditor.stop_operation]. The latter method clears the edited flag. This flag serves a different purpose than [member modified].
 		</member>
 		<member name="height_map" type="Image" setter="set_height_map" getter="get_height_map">
@@ -160,17 +192,17 @@
 			- 2: A bool that tracks if this cell has been modified
 			After changing this data, call [method Terrain3DInstancer.update_mmis] to rebuild the MMIs.
 		</member>
-		<member name="location" type="Vector2i" setter="set_location" getter="get_location">
+		<member name="location" type="Vector2i" setter="set_location" getter="get_location" default="Vector2i(2147483647, 2147483647)">
 			The location in region grid space [code skip-lint](world space / region_size)[/code] coordinates. e.g. (-1, 1) equates to (-1024, 1024) in world space given a [member region_size] of 1024.
 		</member>
-		<member name="modified" type="bool" setter="set_modified" getter="is_modified">
+		<member name="modified" type="bool" setter="set_modified" getter="is_modified" default="false">
 			This region has been modified and will be saved to disk upon [method save]. This serves a different purpose than the temporary [member edited] setting.
 		</member>
 		<member name="region_size" type="int" setter="set_region_size" getter="get_region_size" default="0">
 			The current region size for this region, calculated from the dimensions of the first loaded map. It should match [member Terrain3D.region_size].
 		</member>
 		<member name="version" type="float" setter="set_version" getter="get_version" default="0.8">
-			The data file version. This is independent of the Terrain3D version, though they often align.
+			The data format version. This is independent of the Terrain3D version, though they often align.
 		</member>
 		<member name="vertex_spacing" type="float" setter="set_vertex_spacing" getter="get_vertex_spacing" default="1.0">
 			Stored instancer transforms are laterally scaled by this value. This value is manage by the instancer on loading or when [member Terrain3D.vertex_spacing] is set, and shouldn't be manually adjusted.
@@ -184,7 +216,7 @@
 			Control map - defines where textures and holes are placed.
 		</constant>
 		<constant name="TYPE_COLOR" value="2" enum="MapType">
-			Color map - paints color on the terrain
+			Color map - paints color and wetness on the terrain.
 		</constant>
 		<constant name="TYPE_MAX" value="3" enum="MapType">
 			The number of elements in this enum. Often used to specify all map types for functions that request one.

@@ -5,8 +5,10 @@
 
 #include <godot_cpp/classes/multi_mesh.hpp>
 #include <godot_cpp/classes/multi_mesh_instance3d.hpp>
-#include <unordered_map>
-#include <unordered_set>
+#include <godot_cpp/templates/hash_map.hpp>
+#include <godot_cpp/templates/hash_set.hpp>
+#include <godot_cpp/templates/local_vector.hpp>
+#include <godot_cpp/templates/pair.hpp>
 
 #include "constants.h"
 #include "terrain_3d_region.h"
@@ -35,24 +37,24 @@ private:
 	// Region::_instances{mesh_id:int} -> cell{v2i} -> [ TypedArray<Transform3D>, PackedColorArray, modified:bool ]
 
 	// A pair of MMI and MM RIDs, freed in destructor, stored as
-	// _mmi_rids{region_loc} -> mesh{v2i(mesh_id,lod)} -> cell{v2i} -> std::pair<mmi_RID, mm_RID>
+	// _mmi_rids{region_loc} -> mesh{v2i(mesh_id,lod)} -> cell{v2i} -> Pair<RID: mmi_RID, mm_RID>
 
-	using CellMMIDict = std::unordered_map<Vector2i, std::pair<RID, RID>, Vector2iHash>;
-	using MeshMMIDict = std::unordered_map<Vector2i, CellMMIDict, Vector2iHash>;
-	std::unordered_map<Vector2i, MeshMMIDict, Vector2iHash> _mmi_rids;
+	using CellMMIDict = HashMap<Vector2i, Pair<RID, RID>>;
+	using MeshMMIDict = HashMap<Vector2i, CellMMIDict>;
+	HashMap<Vector2i, MeshMMIDict> _mmi_rids;
 
 	// MMI Updates tracked in a unique Set of <region_location, mesh_id>
 	// <V2I_MAX, -2> means destroy first, then update everything
 	// <V2I_MAX, -1> means update everything
 	// <reg_loc, -1> means update all meshes in that region
 	// <V2I_MAX, N> means update mesh ID N in all regions
-	using V2IIntPair = std::unordered_set<std::pair<Vector2i, int>, PairVector2iIntHash>;
+	using V2IIntPair = HashSet<Pair<Vector2i, int>>;
 	V2IIntPair _queued_updates;
 
 	InstancerMode _mode = NORMAL;
-	uint32_t _density_counter = 0;
+	LocalVector<uint32_t> _density_counters;
 
-	uint32_t _get_density_count(const real_t p_density);
+	uint32_t _update_density_count(const uint32_t p_id, const real_t p_density);
 	int _get_master_lod(const Ref<Terrain3DMeshAsset> &p_ma);
 	void _process_updates();
 	void _update_mmi_by_region(const Terrain3DRegion *p_region, const int p_mesh_id);
@@ -63,7 +65,7 @@ private:
 	void _destroy_mmi_by_cell(const Vector2i &p_region_loc, const int p_mesh_id, const Vector2i p_cell, const int p_lod = INT32_MAX);
 	void _backup_region(const Ref<Terrain3DRegion> &p_region);
 	RID _create_multimesh(const int p_mesh_id, const int p_lod, const TypedArray<Transform3D> &p_xforms = TypedArray<Transform3D>(), const PackedColorArray &p_colors = PackedColorArray()) const;
-	Vector2i _get_cell(const Vector3 &p_global_position, const int p_region_size) const;
+	Vector2i _get_cell(const Vector3 &p_global_position) const;
 	Array _get_usable_height(const Vector3 &p_global_position, const Vector2 &p_slope_range, const bool p_on_collision, const real_t p_raycast_start) const;
 
 public:
@@ -96,7 +98,7 @@ public:
 	void swap_ids(const int p_src_id, const int p_dst_id);
 	void update_mmis(const int p_mesh_id = -1, const Vector2i &p_region_loc = V2I_MAX, const bool p_rebuild = false);
 
-	void reset_density_counter() { _density_counter = 0; }
+	void reset_density_counter() { _density_counters.clear(); }
 
 protected:
 	static void _bind_methods();
@@ -107,14 +109,16 @@ VARIANT_ENUM_CAST(Terrain3DInstancer::InstancerMode);
 
 // Allows us to instance every X function calls for sparse placement
 // Modifies _density_counter, not const!
-inline uint32_t Terrain3DInstancer::_get_density_count(const real_t p_density) {
-	uint32_t count = 0;
-	if (p_density < 1.f && _density_counter++ % uint32_t(1.f / p_density) == 0) {
-		count = 1;
-	} else if (p_density >= 1.f) {
-		count = uint32_t(p_density);
+inline uint32_t Terrain3DInstancer::_update_density_count(const uint32_t p_id, const real_t p_density) {
+	if (p_id >= _density_counters.size()) {
+		_density_counters.resize_initialized(p_id + 1); // ensure new elements are zeroed!
 	}
-	return count;
+	if (p_density < 1.f) {
+		uint32_t &counter = _density_counters[p_id];
+		const uint32_t interval = uint32_t(1.f / p_density);
+		return uint32_t(++counter % interval == 0);
+	}
+	return uint32_t(p_density);
 }
 
 // Use lod0 to track instance counter and set AABB, but in shadows_only lod0 doesn't exist

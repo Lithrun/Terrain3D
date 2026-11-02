@@ -37,6 +37,7 @@ public:
 	static PackedStringArray get_files(const String &p_dir, const String &p_glob = "*");
 
 	// Image operations
+	static CompressMode get_compress_mode(const Image::Format p_format);
 	static Ref<Image> black_to_alpha(const Ref<Image> &p_image);
 	static Vector2 get_min_max(const Ref<Image> &p_image);
 	static Ref<Image> get_thumbnail(const Ref<Image> &p_image, const Vector2i &p_size = V2I(256));
@@ -94,7 +95,7 @@ inline Vector3 v2v3(const Vector2 &p_v2) {
 ///////////////////////////
 
 inline bool is_valid_region_size(int value) {
-	return value >= 64 && value <= 2048 && is_power_of_2(value);
+	return value >= 64 && value <= 2048 && Math::is_power_of_2(value);
 }
 
 // Integer round to multiples
@@ -113,7 +114,7 @@ inline T int_ceil_mult(const T numToRound, const T multiple) {
 template <typename T>
 inline T int_ceil_pow2(T numToRound, T multiple) {
 	static_assert(std::numeric_limits<T>::is_integer, "Only integer types are allowed");
-	ASSERT(is_power_of_2(multiple), int_ceil_mult(numToRound, multiple));
+	ASSERT(Math::is_power_of_2(multiple), int_ceil_mult(numToRound, multiple));
 	return (numToRound + multiple - 1) & -multiple;
 }
 

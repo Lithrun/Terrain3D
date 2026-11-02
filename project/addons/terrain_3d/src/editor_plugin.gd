@@ -6,8 +6,8 @@ extends EditorPlugin
 
 # Includes
 const Terrain3DUI: Script = preload("res://addons/terrain_3d/src/ui.gd")
+const ExportPlugin: Script = preload("res://addons/terrain_3d/src/export_plugin.gd")
 const ASSET_DOCK: String = "res://addons/terrain_3d/src/asset_dock.tscn"
-const ASSET_DOCK_45: String = "res://addons/terrain_3d/src/asset_dock_45.tscn"
 
 # Editor Plugin
 var debug: int = 0 # Set in _edit()
@@ -18,8 +18,10 @@ var asset_dock: PanelContainer
 var current_region_position: Vector2
 var mouse_global_position: Vector3 = Vector3.ZERO
 var godot_editor_window: Window # The Godot Editor window
+var godot_editor_viewport_container: Node # The Node3DEditorViewportContainer that contains all viewports
 var viewport: SubViewport # Viewport the mouse was last in
 var mouse_in_main: bool = false # Helper to track when mouse is in the editor vp
+var export_plugin: EditorExportPlugin = ExportPlugin.new()
 
 # Terrain
 var terrain: Terrain3D
@@ -48,6 +50,18 @@ func _init() -> void:
 	EditorInterface.get_inspector().mouse_entered.connect(func(): mouse_in_main = false)
 
 
+func get_editor_viewport_container() -> Node:
+	if godot_editor_viewport_container:
+		return godot_editor_viewport_container
+	# 4.8 could also use this option
+	# EditorInterface.get_dock_by_name("3D").find_child("*Node3DEditorViewportContainer*", true, false)
+	var node: Node = EditorInterface.get_editor_viewport_3d(0)
+	while node != null and node.get_class() != "Node3DEditorViewportContainer":
+		node = node.get_parent()
+	godot_editor_viewport_container = node
+	return node
+
+
 func _enter_tree() -> void:
 	if debug:
 		print("Terrain3DEditorPlugin: _enter_tree")
@@ -59,12 +73,10 @@ func _enter_tree() -> void:
 
 	scene_changed.connect(_on_scene_changed)
 
-	# Load Godot 4.6+ asset dock or pre-4.6
-	if Engine.get_version_info().hex >= 0x040600:
-		asset_dock = load(ASSET_DOCK).instantiate()
-	else:
-		asset_dock = load(ASSET_DOCK_45).instantiate()
+	asset_dock = load(ASSET_DOCK).instantiate()
 	asset_dock.initialize(self)
+	export_plugin.plugin = self
+	add_export_plugin(export_plugin)
 
 
 func _exit_tree() -> void:
@@ -77,6 +89,7 @@ func _exit_tree() -> void:
 
 	scene_changed.disconnect(_on_scene_changed)
 	godot_editor_window.focus_entered.disconnect(_on_godot_focus_entered)
+	remove_export_plugin(export_plugin)
 
 
 func _on_godot_focus_entered() -> void:

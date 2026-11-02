@@ -54,7 +54,7 @@ Ref<ArrayMesh> Terrain3DMeshAsset::_create_generated_mesh(const GenType p_type) 
 		z = start_pos.y;
 		real_t angle = 0.f;
 		if (m > 1) {
-			angle = (m - 1) * Math_PI / _generated_faces;
+			angle = (m - 1) * Math::PI / _generated_faces;
 		}
 		for (int j = 0; j <= 1; j++) {
 			x = start_pos.x;
@@ -174,7 +174,7 @@ void Terrain3DMeshAsset::clear() {
 	_thumbnail.unref();
 }
 
-void Terrain3DMeshAsset::set_name(const String &p_name) {
+void Terrain3DMeshAsset::set_asset_name(const String &p_name) {
 	if (p_name.length() > 96) {
 		LOG(WARN, "Name too long, truncating to 96 characters");
 	}
@@ -188,13 +188,13 @@ void Terrain3DMeshAsset::set_id(const int p_new_id) {
 	int old_id = _id;
 	SET_IF_DIFF(_id, CLAMP(p_new_id, 0, Terrain3DAssets::MAX_MESHES - 1));
 	LOG(INFO, _name, ": Setting mesh ID: ", _id);
-	LOG(DEBUG, "Emitting id_changed, TYPE_MESH, ", old_id, ", ", p_new_id);
-	emit_signal("id_changed", Terrain3DAssets::TYPE_MESH, old_id, p_new_id);
+	LOG(DEBUG, "Emitting id_changed, TYPE_MESH, ", old_id, ", ", _id);
+	emit_signal("id_changed", Terrain3DAssets::TYPE_MESH, old_id, _id);
 }
 
 void Terrain3DMeshAsset::set_highlighted(const bool p_highlighted) {
 	SET_IF_DIFF(_highlighted, p_highlighted);
-	LOG(INFO, "ID ", _id, ", ", _name, ": Set mesh ID highlight: ", p_highlighted);
+	LOG(INFO, "ID ", _id, ", ", _name, ": Set mesh ID highlight: ", _highlighted);
 	if (_highlighted && _highlight_mat.is_null()) {
 		Ref<StandardMaterial3D> mat;
 		mat.instantiate();
@@ -587,17 +587,17 @@ void Terrain3DMeshAsset::_bind_methods() {
 	BIND_ENUM_CONSTANT(TYPE_TEXTURE_CARD);
 	BIND_ENUM_CONSTANT(TYPE_MAX);
 
-	ADD_SIGNAL(MethodInfo("id_changed"));
-	ADD_SIGNAL(MethodInfo("setting_changed"));
-	ADD_SIGNAL(MethodInfo("instancer_setting_changed"));
+	ADD_SIGNAL(MethodInfo("id_changed",
+			PropertyInfo(Variant::INT, "type"),
+			PropertyInfo(Variant::INT, "old_id"),
+			PropertyInfo(Variant::INT, "new_id")));
+	ADD_SIGNAL(MethodInfo("setting_changed", PropertyInfo(Variant::INT, "id")));
+	ADD_SIGNAL(MethodInfo("instancer_setting_changed", PropertyInfo(Variant::INT, "id")));
 	ADD_SIGNAL(MethodInfo("instance_count_changed"));
 
 	ClassDB::bind_method(D_METHOD("clear"), &Terrain3DMeshAsset::clear);
-	// Bound as *_asset_name rather than set_name/get_name: Resource already owns those (exposing them
-	// as `resource_name`), and 4.8 rejects a GDExtension binding that shadows a base class member.
-	// The property stays named "name", so existing .tres files are unaffected.
-	ClassDB::bind_method(D_METHOD("set_asset_name", "name"), &Terrain3DMeshAsset::set_name);
-	ClassDB::bind_method(D_METHOD("get_asset_name"), &Terrain3DMeshAsset::get_name);
+	ClassDB::bind_method(D_METHOD("set_asset_name", "name"), &Terrain3DMeshAsset::set_asset_name);
+	ClassDB::bind_method(D_METHOD("get_asset_name"), &Terrain3DMeshAsset::get_asset_name);
 	ClassDB::bind_method(D_METHOD("set_id", "id"), &Terrain3DMeshAsset::set_id);
 	ClassDB::bind_method(D_METHOD("get_id"), &Terrain3DMeshAsset::get_id);
 	ClassDB::bind_method(D_METHOD("set_highlighted", "enabled"), &Terrain3DMeshAsset::set_highlighted);

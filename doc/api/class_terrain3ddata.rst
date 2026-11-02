@@ -152,7 +152,7 @@ Methods
    +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
    | |void|                                                                     | :ref:`save_directory<class_Terrain3DData_method_save_directory>`\ (\ directory\: ``String``\ )                                                                                                                               |
    +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-   | |void|                                                                     | :ref:`save_region<class_Terrain3DData_method_save_region>`\ (\ region_location\: ``Vector2i``, directory\: ``String``, save_16_bit\: ``bool`` = false\ )                                                                     |
+   | |void|                                                                     | :ref:`save_region<class_Terrain3DData_method_save_region>`\ (\ region_location\: ``Vector2i``, directory\: ``String`` = "", save_16_bit\: ``bool`` = false, color_compress_mode\: CompressMode = 5\ )                        |
    +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
    | |void|                                                                     | :ref:`set_color<class_Terrain3DData_method_set_color>`\ (\ global_position\: ``Vector3``, color\: ``Color``\ )                                                                                                               |
    +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
@@ -185,6 +185,12 @@ Methods
    | |void|                                                                     | :ref:`set_roughness<class_Terrain3DData_method_set_roughness>`\ (\ global_position\: ``Vector3``, roughness\: ``float``\ )                                                                                                   |
    +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
    | |void|                                                                     | :ref:`update_maps<class_Terrain3DData_method_update_maps>`\ (\ map_type\: :ref:`MapType<enum_Terrain3DRegion_MapType>` = 3, all_regions\: ``bool`` = true, generate_mipmaps\: ``bool`` = false\ )                            |
+   +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+   | ``Vector2i``                                                               | :ref:`vgrid_to_pixelv<class_Terrain3DData_method_vgrid_to_pixelv>`\ (\ vgrid\: ``Vector2i``\ ) |const|                                                                                                                       |
+   +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+   | ``Vector2i``                                                               | :ref:`world_to_pixelv<class_Terrain3DData_method_world_to_pixelv>`\ (\ global_position\: ``Vector3``\ ) |const|                                                                                                              |
+   +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+   | ``Vector2i``                                                               | :ref:`world_to_vgrid<class_Terrain3DData_method_world_to_vgrid>`\ (\ global_position\: ``Vector3``\ ) |const|                                                                                                                |
    +----------------------------------------------------------------------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 
 .. rst-class:: classref-section-separator
@@ -365,7 +371,7 @@ Property Descriptions
 
 - :ref:`Array<class_Array>`\[``Image``\] **get_color_maps**\ (\ )
 
-An Array\ ``Image`` containing references to all of the color maps in all regions. See :ref:`Terrain3DRegion.color_map<class_Terrain3DRegion_property_color_map>`.
+An Array\[Image\] containing references to all of the color maps in all regions. See :ref:`Terrain3DRegion.color_map<class_Terrain3DRegion_property_color_map>`.
 
 .. rst-class:: classref-item-separator
 
@@ -381,7 +387,7 @@ An Array\ ``Image`` containing references to all of the color maps in all region
 
 - :ref:`Array<class_Array>`\[``Image``\] **get_control_maps**\ (\ )
 
-An Array\ ``Image`` containing references to all of the control maps in all regions. See :ref:`Terrain3DRegion.control_map<class_Terrain3DRegion_property_control_map>`.
+An Array\[Image\] containing references to all of the control maps in all regions. See :ref:`Terrain3DRegion.control_map<class_Terrain3DRegion_property_control_map>`.
 
 .. rst-class:: classref-item-separator
 
@@ -397,7 +403,7 @@ An Array\ ``Image`` containing references to all of the control maps in all regi
 
 - :ref:`Array<class_Array>`\[``Image``\] **get_height_maps**\ (\ )
 
-An Array\ ``Image`` containing references to all of the height maps in all regions. See :ref:`Terrain3DRegion.height_map<class_Terrain3DRegion_property_height_map>`.
+An Array\[Image\] containing references to all of the height maps in all regions. See :ref:`Terrain3DRegion.height_map<class_Terrain3DRegion_property_height_map>`.
 
 .. rst-class:: classref-item-separator
 
@@ -547,7 +553,7 @@ Mode specifies exporting up to 16k x 16k slices or one file per region.
 
 ``Color`` **get_color**\ (\ global_position\: ``Vector3``\ ) |const| :ref:`🔗<class_Terrain3DData_method_get_color>`
 
-Returns the associated pixel on the color map at the requested position.
+Returns the associated pixel on the color map at the requested position.  See :ref:`get_pixel()<class_Terrain3DData_method_get_pixel>`.
 
 Returns ``Color(NAN, NAN, NAN, NAN)`` if the position is outside of defined regions.
 
@@ -561,7 +567,9 @@ Returns ``Color(NAN, NAN, NAN, NAN)`` if the position is outside of defined regi
 
 ``RID`` **get_color_maps_rid**\ (\ ) |const| :ref:`🔗<class_Terrain3DData_method_get_color_maps_rid>`
 
-Returns the resource ID of the generated height map Texture Array sent to the shader. You can use this RID with the RenderingServer to set it as a shader parameter for a sampler2DArray uniform in your own shader. See `Tips <https://terrain3d.readthedocs.io/en/stable/docs/tips.html#using-the-generated-height-map-in-other-shaders>`__ for an example.
+Returns the resource ID of the generated color map Texture Array sent to the shader. Uses the active color map. See :ref:`Terrain3DRegion.get_active_color_map()<class_Terrain3DRegion_method_get_active_color_map>`.
+
+You can use this RID with the RenderingServer to set it as a shader parameter for a sampler2DArray uniform in your own shader. See `Tips <https://terrain3d.readthedocs.io/en/stable/docs/tips.html#using-the-generated-height-map-in-other-shaders>`__ for an example.
 
 .. rst-class:: classref-item-separator
 
@@ -797,6 +805,8 @@ Returns the pixel for the map type associated with the specified position. Globa
 
 Returns ``Color(NAN, NAN, NAN, NAN)`` if the position is outside of defined regions.
 
+Note: If using :ref:`Terrain3D.color_compress_mode<class_Terrain3D_property_color_compress_mode>`, Godot ``Image.set_pixel()`` and ``get_pixel()`` do not work on compressed images and will print errors at runtime.
+
 .. rst-class:: classref-item-separator
 
 ----
@@ -857,7 +867,11 @@ Returns the region id at a global position. See :ref:`get_region_id()<class_Terr
 
 ``Vector2i`` **get_region_location**\ (\ global_position\: ``Vector3``\ ) |const| :ref:`🔗<class_Terrain3DData_method_get_region_location>`
 
-Returns the calculated region location for the given global position. This is just a calculation and does no bounds checking or verification that a region exists. See :ref:`get_region_map_index()<class_Terrain3DData_method_get_region_map_index>` for bounds checking, or :ref:`has_region()<class_Terrain3DData_method_has_region>` for checking if it exists.
+Returns the region location coordinates for the given global position.
+
+Calculates ``floori(world_to_vgrid(global_position) / region size))``. It does no data verification.
+
+See :ref:`get_region_map_index()<class_Terrain3DData_method_get_region_map_index>` for bounds checking, :ref:`has_region()<class_Terrain3DData_method_has_region>` for checking if it exists, and :ref:`world_to_vgrid()<class_Terrain3DData_method_world_to_vgrid>`.
 
 .. rst-class:: classref-item-separator
 
@@ -937,7 +951,7 @@ Returns all regions in a dictionary indexed by region location. Some regions may
 
 ``float`` **get_roughness**\ (\ global_position\: ``Vector3``\ ) |const| :ref:`🔗<class_Terrain3DData_method_get_roughness>`
 
-Returns the roughness modifier (wetness) on the color map alpha channel associated with the specified position.
+Returns the roughness modifier (wetness) on the color map alpha channel associated with the specified position. See :ref:`get_pixel()<class_Terrain3DData_method_get_pixel>`.
 
 Returns ``Color(NAN, NAN, NAN, NAN)`` if the position is outside of defined regions.
 
@@ -1155,13 +1169,15 @@ This saves all active regions into the specified directory.
 
 .. rst-class:: classref-method
 
-|void| **save_region**\ (\ region_location\: ``Vector2i``, directory\: ``String``, save_16_bit\: ``bool`` = false\ ) :ref:`🔗<class_Terrain3DData_method_save_region>`
+|void| **save_region**\ (\ region_location\: ``Vector2i``, directory\: ``String`` = "", save_16_bit\: ``bool`` = false, color_compress_mode\: CompressMode = 5\ ) :ref:`🔗<class_Terrain3DData_method_save_region>`
 
 Saves the specified active region to the directory. See :ref:`Terrain3DRegion.save()<class_Terrain3DRegion_method_save>`.
 
 - region_location - the region to save.
 
 - 16_bit - converts the edited 32-bit heightmap to 16-bit. This is a lossy operation.
+
+- color_compression_mode - compresses the color map with the selected mode.
 
 .. rst-class:: classref-item-separator
 
@@ -1317,9 +1333,11 @@ Sets the height value on the heightmap at the specified position. See :ref:`set_
 
 |void| **set_pixel**\ (\ map_type\: :ref:`MapType<enum_Terrain3DRegion_MapType>`, global_position\: ``Vector3``, pixel\: ``Color``\ ) :ref:`🔗<class_Terrain3DData_method_set_pixel>`
 
-Sets the pixel for the map type associated with the specified position. Global position is descaled and floored to find the vertex grid coordinates. This method is fine for setting a few pixels, but if you wish to modify thousands of pixels quickly, you should get the region and use :ref:`Terrain3DRegion.get_map()<class_Terrain3DRegion_method_get_map>`, then edit the images directly.
+Sets the pixel for the map type associated with the specified position. Global position is descaled and floored to find the vertex grid coordinates. This method is fine for setting a few pixels, but if you wish to modify thousands of pixels quickly, you should get the region and use :ref:`Terrain3DRegion.get_map()<class_Terrain3DRegion_method_get_map>`, then edit the images directly. See Technical Tips.
 
 After setting pixels you need to call :ref:`update_maps()<class_Terrain3DData_method_update_maps>`. You may also need to regenerate collision if you don't have dynamic collision enabled.
+
+Note: If using :ref:`Terrain3D.color_compress_mode<class_Terrain3D_property_color_compress_mode>`, Godot ``Image.set_pixel()`` and ``get_pixel()`` do not work on compressed images and will print errors at runtime.
 
 .. rst-class:: classref-item-separator
 
@@ -1386,6 +1404,50 @@ For frequent editing, rather than enabling all_regions, it is more optimal to on
     region.set_edited(true)
     terrain.data.update_maps(Terrain3DRegion.TYPE_HEIGHT, false)
     region.set_edited(false)
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DData_method_vgrid_to_pixelv:
+
+.. rst-class:: classref-method
+
+``Vector2i`` **vgrid_to_pixelv**\ (\ vgrid\: ``Vector2i``\ ) |const| :ref:`🔗<class_Terrain3DData_method_vgrid_to_pixelv>`
+
+Returns the Image map pixel position for the given descaled vertex grid coordinates.
+
+Calculates ``posmod(vgrid, region_size)``.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DData_method_world_to_pixelv:
+
+.. rst-class:: classref-method
+
+``Vector2i`` **world_to_pixelv**\ (\ global_position\: ``Vector3``\ ) |const| :ref:`🔗<class_Terrain3DData_method_world_to_pixelv>`
+
+Returns the Image map pixel position for the given global position.
+
+Calculates ``vgrid_to_pixelv(world_to_vgrid(global_position))``.
+
+See :ref:`vgrid_to_pixelv()<class_Terrain3DData_method_vgrid_to_pixelv>` and :ref:`world_to_vgrid()<class_Terrain3DData_method_world_to_vgrid>`.
+
+.. rst-class:: classref-item-separator
+
+----
+
+.. _class_Terrain3DData_method_world_to_vgrid:
+
+.. rst-class:: classref-method
+
+``Vector2i`` **world_to_vgrid**\ (\ global_position\: ``Vector3``\ ) |const| :ref:`🔗<class_Terrain3DData_method_world_to_vgrid>`
+
+Returns the descaled vertex grid for the given global position.
+
+Calculates ``floor(global_position / vertex_spacing)``.
 
 .. |virtual| replace:: :abbr:`virtual (This method should typically be overridden by the user to have any effect.)`
 .. |required| replace:: :abbr:`required (This method is required to be overridden when extending its base class.)`

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="Terrain3DUtil" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+<class name="Terrain3DUtil" inherits="Object" api_type="extension" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -125,6 +125,14 @@
 			<param index="0" name="pixel" type="int" />
 			<description>
 				Returns the blend value from a control map pixel.
+			</description>
+		</method>
+		<method name="get_compress_mode" qualifiers="static">
+			<return type="int" enum="CompressMode" />
+			<param index="0" name="image_format" type="int" enum="Image.Format" />
+			<description>
+				Converts a Godot [code skip-lint]Image.Format[/code] enum value to a [enum Terrain3D.CompressMode] enum value (equivalent to Godot [code skip-lint]Image.CompressMode[/code]).
+				e.g. Input [code skip-lint]Image::FORMAT_DXT5[/code] and receive Godot [code skip-lint]Terrain3D.CompressMode.COMPRESS_S3TC[/code].
 			</description>
 		</method>
 		<method name="get_filled_image" qualifiers="static">

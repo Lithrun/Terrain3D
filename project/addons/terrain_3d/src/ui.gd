@@ -292,9 +292,12 @@ func _on_setting_changed(p_setting: Variant = null) -> void:
 	if not plugin.asset_dock: # Skip function if not _ready()
 		return
 	brush_data = tool_settings.get_settings()
-	brush_data["asset_id"] = plugin.asset_dock.current_list.get_selected_asset_id()
+	brush_data["mesh_asset_ids"] = plugin.asset_dock.mesh_list.selected_list
+	brush_data["texture_asset_ids"] =  plugin.asset_dock.texture_list.selected_list
+		
 	if plugin.debug:
-		print("Terrain3DUI: _on_setting_changed: selected resource ID: ", brush_data["asset_id"])
+		print("Terrain3DUI: _on_setting_changed: selected mesh resource IDs: ", brush_data["mesh_asset_ids"])
+		print("Terrain3DUI: _on_setting_changed: selected texture resource IDs: ", brush_data["texture_asset_ids"])
 	if plugin.editor:
 		plugin.editor.set_brush_data(brush_data)
 	inverted_input = brush_data.get("invert", false)
@@ -370,7 +373,9 @@ func update_decal() -> void:
 			return
 	
 	# Only show decal if in viewport or toolbars
-	var main: Control = EditorInterface.get_editor_main_screen()
+	var main: Control = plugin.get_editor_viewport_container()
+	if not main:
+		return
 	var main_rect := Rect2(main.position, main.size)
 	main_rect.size.y += tool_settings.size.y
 	if not ( main_rect.has_point(plugin.viewport.get_mouse_position()) && plugin.mouse_in_main ):
@@ -679,13 +684,9 @@ func set_button_editor_icon(p_button: Button, p_icon_name: String) -> void:
 func setup_live_info_panel() -> void:
 	live_info_panel = load(LIVE_INFO_PANEL).instantiate()
 	live_info_panel.plugin = plugin
-	var main_screen = EditorInterface.get_editor_main_screen()
-	if not main_screen:
-		push_error("Terrain3DUI: setup_live_info_panel(): Failed to get main screen")
-		return
-	var viewport_container = main_screen.find_child("*Node3DEditorViewportContainer*", true, false)
+	var viewport_container: Node = plugin.get_editor_viewport_container()
 	if not viewport_container:
-		push_error("Terrain3DUI: setup_live_info_panel(): Failed to get main viewport_container")
+		push_error("Terrain3DUI: setup_live_info_panel(): Failed to get editor viewport container")
 		return
 	viewport_container.add_child(live_info_panel, true)
 	live_info_panel.visible = false

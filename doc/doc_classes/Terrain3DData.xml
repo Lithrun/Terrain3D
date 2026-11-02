@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" ?>
-<class name="Terrain3DData" inherits="Object" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
+<class name="Terrain3DData" inherits="Object" api_type="extension" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="https://raw.githubusercontent.com/godotengine/godot/master/doc/class.xsd">
 	<brief_description>
 	</brief_description>
 	<description>
@@ -84,14 +84,15 @@
 			<return type="Color" />
 			<param index="0" name="global_position" type="Vector3" />
 			<description>
-				Returns the associated pixel on the color map at the requested position.
+				Returns the associated pixel on the color map at the requested position.  See [method get_pixel].
 				Returns [code skip-lint]Color(NAN, NAN, NAN, NAN)[/code] if the position is outside of defined regions.
 			</description>
 		</method>
 		<method name="get_color_maps_rid" qualifiers="const">
 			<return type="RID" />
 			<description>
-				Returns the resource ID of the generated height map Texture Array sent to the shader. You can use this RID with the RenderingServer to set it as a shader parameter for a sampler2DArray uniform in your own shader. See [url=https://terrain3d.readthedocs.io/en/stable/docs/tips.html#using-the-generated-height-map-in-other-shaders]Tips[/url] for an example.
+				Returns the resource ID of the generated color map Texture Array sent to the shader. Uses the active color map. See [method Terrain3DRegion.get_active_color_map].
+				You can use this RID with the RenderingServer to set it as a shader parameter for a sampler2DArray uniform in your own shader. See [url=https://terrain3d.readthedocs.io/en/stable/docs/tips.html#using-the-generated-height-map-in-other-shaders]Tips[/url] for an example.
 			</description>
 		</method>
 		<method name="get_control" qualifiers="const">
@@ -226,6 +227,7 @@
 			<description>
 				Returns the pixel for the map type associated with the specified position. Global position is descaled and floored to find the vertex grid coordinates.
 				Returns [code skip-lint]Color(NAN, NAN, NAN, NAN)[/code] if the position is outside of defined regions.
+				Note: If using [member Terrain3D.color_compress_mode], Godot [code skip-lint]Image.set_pixel()[/code] and [code skip-lint]get_pixel()[/code] do not work on compressed images and will print errors at runtime.
 			</description>
 		</method>
 		<method name="get_region" qualifiers="const">
@@ -260,7 +262,9 @@
 			<return type="Vector2i" />
 			<param index="0" name="global_position" type="Vector3" />
 			<description>
-				Returns the calculated region location for the given global position. This is just a calculation and does no bounds checking or verification that a region exists. See [method get_region_map_index] for bounds checking, or [method has_region] for checking if it exists.
+				Returns the region location coordinates for the given global position.
+				Calculates [code skip-lint]floori(world_to_vgrid(global_position) / region size))[/code]. It does no data verification.
+				See [method get_region_map_index] for bounds checking, [method has_region] for checking if it exists, and [method world_to_vgrid].
 			</description>
 		</method>
 		<method name="get_region_map" qualifiers="const">
@@ -305,7 +309,7 @@
 			<return type="float" />
 			<param index="0" name="global_position" type="Vector3" />
 			<description>
-				Returns the roughness modifier (wetness) on the color map alpha channel associated with the specified position.
+				Returns the roughness modifier (wetness) on the color map alpha channel associated with the specified position. See [method get_pixel].
 				Returns [code skip-lint]Color(NAN, NAN, NAN, NAN)[/code] if the position is outside of defined regions.
 			</description>
 		</method>
@@ -441,12 +445,14 @@
 		<method name="save_region">
 			<return type="void" />
 			<param index="0" name="region_location" type="Vector2i" />
-			<param index="1" name="directory" type="String" />
+			<param index="1" name="directory" type="String" default="&quot;&quot;" />
 			<param index="2" name="save_16_bit" type="bool" default="false" />
+			<param index="3" name="color_compress_mode" type="int" enum="CompressMode" default="5" />
 			<description>
 				Saves the specified active region to the directory. See [method Terrain3DRegion.save].
 				- region_location - the region to save.
 				- 16_bit - converts the edited 32-bit heightmap to 16-bit. This is a lossy operation.
+				- color_compression_mode - compresses the color map with the selected mode.
 			</description>
 		</method>
 		<method name="set_color">
@@ -549,8 +555,9 @@
 			<param index="1" name="global_position" type="Vector3" />
 			<param index="2" name="pixel" type="Color" />
 			<description>
-				Sets the pixel for the map type associated with the specified position. Global position is descaled and floored to find the vertex grid coordinates. This method is fine for setting a few pixels, but if you wish to modify thousands of pixels quickly, you should get the region and use [method Terrain3DRegion.get_map], then edit the images directly.
+				Sets the pixel for the map type associated with the specified position. Global position is descaled and floored to find the vertex grid coordinates. This method is fine for setting a few pixels, but if you wish to modify thousands of pixels quickly, you should get the region and use [method Terrain3DRegion.get_map], then edit the images directly. See Technical Tips.
 				After setting pixels you need to call [method update_maps]. You may also need to regenerate collision if you don't have dynamic collision enabled.
+				Note: If using [member Terrain3D.color_compress_mode], Godot [code skip-lint]Image.set_pixel()[/code] and [code skip-lint]get_pixel()[/code] do not work on compressed images and will print errors at runtime.
 			</description>
 		</method>
 		<method name="set_region_deleted">
@@ -598,16 +605,41 @@
 				[/codeblock]
 			</description>
 		</method>
+		<method name="vgrid_to_pixelv" qualifiers="const">
+			<return type="Vector2i" />
+			<param index="0" name="vgrid" type="Vector2i" />
+			<description>
+				Returns the Image map pixel position for the given descaled vertex grid coordinates.
+				Calculates [code skip-lint]posmod(vgrid, region_size)[/code].
+			</description>
+		</method>
+		<method name="world_to_pixelv" qualifiers="const">
+			<return type="Vector2i" />
+			<param index="0" name="global_position" type="Vector3" />
+			<description>
+				Returns the Image map pixel position for the given global position.
+				Calculates [code skip-lint]vgrid_to_pixelv(world_to_vgrid(global_position))[/code].
+				See [method vgrid_to_pixelv] and [method world_to_vgrid].
+			</description>
+		</method>
+		<method name="world_to_vgrid" qualifiers="const">
+			<return type="Vector2i" />
+			<param index="0" name="global_position" type="Vector3" />
+			<description>
+				Returns the descaled vertex grid for the given global position.
+				Calculates [code skip-lint]floor(global_position / vertex_spacing)[/code].
+			</description>
+		</method>
 	</methods>
 	<members>
 		<member name="color_maps" type="Image[]" setter="" getter="get_color_maps" default="[]">
-			An Array[Image] containing references to all of the color maps in all regions. See [member Terrain3DRegion.color_map].
+			An Array[lb]Image[rb] containing references to all of the color maps in all regions. See [member Terrain3DRegion.color_map].
 		</member>
 		<member name="control_maps" type="Image[]" setter="" getter="get_control_maps" default="[]">
-			An Array[Image] containing references to all of the control maps in all regions. See [member Terrain3DRegion.control_map].
+			An Array[lb]Image[rb] containing references to all of the control maps in all regions. See [member Terrain3DRegion.control_map].
 		</member>
 		<member name="height_maps" type="Image[]" setter="" getter="get_height_maps" default="[]">
-			An Array[Image] containing references to all of the height maps in all regions. See [member Terrain3DRegion.height_map].
+			An Array[lb]Image[rb] containing references to all of the height maps in all regions. See [member Terrain3DRegion.height_map].
 		</member>
 		<member name="region_locations" type="Vector2i[]" setter="set_region_locations" getter="get_region_locations" default="[]">
 			The array of all active region locations; those not marked for deletion.

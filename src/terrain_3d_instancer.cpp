@@ -15,7 +15,7 @@
 
 // Creates MMIs based on Multimesh data stored in Terrain3DRegions
 void Terrain3DInstancer::_process_updates() {
-	if (_queued_updates.empty()) {
+	if (_queued_updates.is_empty()) {
 		if (RS->is_connected("frame_pre_draw", callable_mp(this, &Terrain3DInstancer::_process_updates))) {
 			LOG(DEBUG, "Disconnect from RS::frame_pre_draw signal");
 			RS->disconnect("frame_pre_draw", callable_mp(this, &Terrain3DInstancer::_process_updates));
@@ -32,10 +32,10 @@ void Terrain3DInstancer::_process_updates() {
 
 	// Process all regions/mesh_ids sentinel and exit
 	bool update_all = false;
-	if (_queued_updates.find({ V2I_MAX, -2 }) != _queued_updates.end()) {
+	if (_queued_updates.has(Pair<Vector2i, int>(V2I_MAX, -2))) {
 		destroy();
 		update_all = true;
-	} else if (_queued_updates.find({ V2I_MAX, -1 }) != _queued_updates.end()) {
+	} else if (_queued_updates.has(Pair<Vector2i, int>(V2I_MAX, -1))) {
 		update_all = true;
 	}
 
@@ -48,7 +48,6 @@ void Terrain3DInstancer::_process_updates() {
 				continue;
 			}
 			for (int mesh_id = 0; mesh_id < mesh_count; mesh_id++) {
-				auto pair = std::make_pair(region_loc, mesh_id);
 				if (region->get_instances().has(mesh_id)) {
 					_update_mmi_by_region(region, mesh_id);
 				}
@@ -63,33 +62,37 @@ void Terrain3DInstancer::_process_updates() {
 	V2IIntPair to_process;
 
 	// Process queued pairs with at least one specific element
-	for (const auto &[queued_loc, queued_mesh] : _queued_updates) {
-		if (queued_loc == V2I_MAX && queued_mesh < 0 || queued_mesh >= mesh_count) {
+	for (const Pair<Vector2i, int> &update : _queued_updates) {
+		const Vector2i &queued_loc = update.first;
+		int queued_mesh = update.second;
+		if ((queued_loc == V2I_MAX && queued_mesh < 0) || queued_mesh >= mesh_count) {
 			continue; // Skip sentinels handled above
 		}
 		// If all regions for specific mesh_id
 		if (queued_loc == V2I_MAX && queued_mesh >= 0) {
 			for (const Vector2i &region_loc : region_locations) {
-				auto pair = std::make_pair(region_loc, queued_mesh);
-				to_process.emplace(pair);
+				auto pair = Pair<Vector2i, int>(region_loc, queued_mesh);
+				to_process.insert(pair);
 			}
 		} else {
 			// Else one specific region
 			if (queued_mesh == -1) {
 				// All mesh_ids for this region
 				for (int mesh_id = 0; mesh_id < mesh_count; mesh_id++) {
-					auto pair = std::make_pair(queued_loc, mesh_id);
-					to_process.emplace(pair);
+					auto pair = Pair<Vector2i, int>(queued_loc, mesh_id);
+					to_process.insert(pair);
 				}
 			} else {
 				// Specific region + mesh - most common case
-				auto pair = std::make_pair(queued_loc, queued_mesh);
-				to_process.emplace(pair);
+				auto pair = Pair<Vector2i, int>(queued_loc, queued_mesh);
+				to_process.insert(pair);
 			}
 		}
 	}
 	LOG(DEBUG, "Processing ", (int)to_process.size(), " queued updates");
-	for (const auto &[region_loc, mesh_id] : to_process) {
+	for (const Pair<Vector2i, int> &update : to_process) {
+		const Vector2i &region_loc = update.first;
+		int mesh_id = update.second;
 		const Terrain3DRegion *region = data->get_region_ptr(region_loc);
 		if (!region) {
 			LOG(WARN, "Errant null region found at: ", region_loc);
@@ -385,17 +388,17 @@ void Terrain3DInstancer::_destroy_mmi_by_mesh(const int p_mesh_id) {
 void Terrain3DInstancer::_destroy_mmi_by_location(const Vector2i &p_region_loc, const int p_mesh_id) {
 	LOG(DEBUG, "Deleting all MMIs in region: ", p_region_loc, " for mesh_id: ", p_mesh_id);
 	// Identify cells with matching mesh_id
-	std::unordered_set<Vector2i, Vector2iHash> cells;
-	if (_mmi_rids.count(p_region_loc) > 0) {
+	HashSet<Vector2i> cells;
+	if (_mmi_rids.has(p_region_loc)) {
 		MeshMMIDict &mesh_mmi_dict = _mmi_rids[p_region_loc];
-		for (const auto &mesh_entry : mesh_mmi_dict) {
-			const Vector2i &mesh_key = mesh_entry.first;
+		for (const KeyValue<Vector2i, CellMMIDict> &mesh_entry : mesh_mmi_dict) {
+			const Vector2i &mesh_key = mesh_entry.key;
 			if (mesh_key.x != p_mesh_id) {
 				continue;
 			}
-			const CellMMIDict &cell_mmi_dict = mesh_entry.second;
-			for (const auto &cell_entry : cell_mmi_dict) {
-				cells.insert(cell_entry.first);
+			const CellMMIDict &cell_mmi_dict = mesh_entry.value;
+			for (const KeyValue<Vector2i, Pair<RID, RID>> &cell_entry : cell_mmi_dict) {
+				cells.insert(cell_entry.key);
 			}
 		}
 	}
@@ -404,13 +407,13 @@ void Terrain3DInstancer::_destroy_mmi_by_location(const Vector2i &p_region_loc, 
 		_destroy_mmi_by_cell(p_region_loc, p_mesh_id, cell);
 	}
 	// After all cells are destroyed, if the region is now empty, erase it
-	if (_mmi_rids.count(p_region_loc) > 0 && _mmi_rids[p_region_loc].empty()) {
+	if (_mmi_rids.has(p_region_loc) && _mmi_rids[p_region_loc].is_empty()) {
 		_mmi_rids.erase(p_region_loc);
 	}
 }
 
 void Terrain3DInstancer::_destroy_mmi_by_cell(const Vector2i &p_region_loc, const int p_mesh_id, const Vector2i p_cell, const int p_lod) {
-	if (_mmi_rids.count(p_region_loc) == 0) {
+	if (!_mmi_rids.has(p_region_loc)) {
 		return;
 	}
 	MeshMMIDict &mesh_mmi_dict = _mmi_rids[p_region_loc];
@@ -422,11 +425,11 @@ void Terrain3DInstancer::_destroy_mmi_by_cell(const Vector2i &p_region_loc, cons
 			continue;
 		}
 		Vector2i mesh_key(p_mesh_id, lod);
-		if (mesh_mmi_dict.count(mesh_key) == 0) {
+		if (!mesh_mmi_dict.has(mesh_key)) {
 			continue;
 		}
 		CellMMIDict &cell_mmi_dict = mesh_mmi_dict[mesh_key];
-		if (cell_mmi_dict.count(p_cell) == 0) {
+		if (!cell_mmi_dict.has(p_cell)) {
 			continue;
 		}
 
@@ -450,14 +453,14 @@ void Terrain3DInstancer::_destroy_mmi_by_cell(const Vector2i &p_region_loc, cons
 		cell_mmi_dict.erase(p_cell);
 
 		// If the cell is empty of all MMIs, remove it
-		if (cell_mmi_dict.empty()) {
+		if (cell_mmi_dict.is_empty()) {
 			LOG(EXTREME, "Removing mesh ", mesh_key, " from cell MMI dictionary");
 			mesh_mmi_dict.erase(mesh_key); // invalidates cell_mmi_dict
 		}
 	}
 
 	// Clean up region if we've removed the last MMI and cell
-	if (mesh_mmi_dict.empty()) {
+	if (mesh_mmi_dict.is_empty()) {
 		LOG(EXTREME, "Removing region ", p_region_loc, " from mesh MMI dictionary");
 		// This invalidates mesh_mmi_dict here and for calling functions
 		_mmi_rids.erase(p_region_loc);
@@ -503,13 +506,10 @@ RID Terrain3DInstancer::_create_multimesh(const int p_mesh_id, const int p_lod, 
 	return mm;
 }
 
-Vector2i Terrain3DInstancer::_get_cell(const Vector3 &p_global_position, const int p_region_size) const {
+Vector2i Terrain3DInstancer::_get_cell(const Vector3 &p_global_position) const {
 	IS_INIT(V2I_ZERO);
-	real_t vertex_spacing = _terrain->get_vertex_spacing();
-	Vector2i cell;
-	cell.x = UtilityFunctions::posmod(UtilityFunctions::floori(p_global_position.x / vertex_spacing), p_region_size) / CELL_SIZE;
-	cell.y = UtilityFunctions::posmod(UtilityFunctions::floori(p_global_position.z / vertex_spacing), p_region_size) / CELL_SIZE;
-	return cell;
+	Vector2i img_pos = _terrain->get_data()->world_to_pixelv(p_global_position);
+	return img_pos / CELL_SIZE;
 }
 
 // Get appropriate terrain height. Could find terrain (excluding slope or holes) or optional collision
@@ -627,130 +627,158 @@ void Terrain3DInstancer::set_mode(const InstancerMode p_mode) {
 
 void Terrain3DInstancer::add_instances(const Vector3 &p_global_position, const Dictionary &p_params) {
 	IS_DATA_INIT_MESG("Instancer isn't initialized.", VOID);
-	int mesh_id = p_params.get("asset_id", 0);
-	if (mesh_id < 0 || mesh_id >= _terrain->get_assets()->get_mesh_count()) {
-		LOG(ERROR, "Mesh ID out of range: ", mesh_id, ", valid: 0 to ", _terrain->get_assets()->get_mesh_count() - 1);
+	if (!p_params.has("mesh_asset_ids")) {
+		LOG(ERROR, "We need an array of mesh_asset_ids");
 		return;
 	}
 
 	real_t brush_size = CLAMP(real_t(p_params.get("size", 10.f)), 0.1f, 4096.f); // Meters
 	real_t radius = brush_size * .5f;
 	real_t strength = CLAMP(real_t(p_params.get("strength", .1f)), .01f, 100.f); // (premul) 1-10k%
-	real_t fixed_scale = CLAMP(real_t(p_params.get("fixed_scale", 100.f)) * .01f, .01f, 100.f); // 1-10k%
-	real_t random_scale = CLAMP(real_t(p_params.get("random_scale", 0.f)) * .01f, 0.f, 10.f); // +/- 1000%
-	Ref<Terrain3DMeshAsset> mesh_asset = _terrain->get_assets()->get_mesh_asset(mesh_id);
-	real_t density = CLAMP(.1f * brush_size * strength * mesh_asset->get_density() /
-					MAX(0.01f, fixed_scale + .5f * random_scale),
-			.001f, 1000.f);
-	// Density based on strength, mesh AABB and input scale determines how many to place, even fractional
-	uint32_t count = _get_density_count(density);
-	if (count <= 0) {
-		return;
-	}
-	LOG(EXTREME, "Adding ", count, " instances at ", p_global_position);
 
-	real_t fixed_spin = CLAMP(real_t(p_params.get("fixed_spin", 0.f)), .0f, 360.f); // degrees
-	real_t random_spin = CLAMP(real_t(p_params.get("random_spin", 360.f)), 0.f, 360.f); // degrees
-	real_t fixed_tilt = CLAMP(real_t(p_params.get("fixed_tilt", 0.f)), -180.f, 180.f); // degrees
-	real_t random_tilt = CLAMP(real_t(p_params.get("random_tilt", 10.f)), 0.f, 180.f); // degrees
-	bool align_to_normal = bool(p_params.get("align_to_normal", false));
+	Array mesh_ids = p_params.get("mesh_asset_ids", Array());
 
-	real_t height_offset = CLAMP(real_t(p_params.get("height_offset", 0.f)), -100.0f, 100.f); // meters
-	real_t random_height = CLAMP(real_t(p_params.get("random_height", 0.f)), 0.f, 100.f); // meters
+	for (const int mesh_id : mesh_ids) {
+		if (mesh_id < 0 || mesh_id >= _terrain->get_assets()->get_mesh_count()) {
+			LOG(ERROR, "Mesh ID out of range: ", mesh_id, ", valid: 0 to ", _terrain->get_assets()->get_mesh_count() - 1);
+			return;
+		}
 
-	Color vertex_color = Color(p_params.get("vertex_color", COLOR_WHITE));
-	real_t random_hue = CLAMP(real_t(p_params.get("random_hue", 0.f)) / 360.f, 0.f, 1.f); // degrees -> 0-1
-	real_t random_darken = CLAMP(real_t(p_params.get("random_darken", 0.f)) * .01f, 0.f, 1.f); // 0-100%
-
-	Vector2 slope_range = p_params.get("slope", Vector2(0.f, 90.f)); // 0-90 degrees
-	slope_range.x = CLAMP(slope_range.x, 0.f, 90.f);
-	slope_range.y = CLAMP(slope_range.y, 0.f, 90.f);
-	bool on_collision = bool(p_params.get("on_collision", false));
-	real_t raycast_height = p_params.get("raycast_height", 10.f);
-	Terrain3DData *data = _terrain->get_data();
-
-	TypedArray<Transform3D> xforms;
-	PackedColorArray colors;
-	for (int i = 0; i < count; i++) {
-		Transform3D t;
-
-		// Get random XZ position and height in a circle
-		real_t r_radius = radius * sqrt(UtilityFunctions::randf());
-		real_t r_theta = UtilityFunctions::randf() * Math_TAU;
-		Vector3 rand_vec = Vector3(r_radius * cos(r_theta), 0.f, r_radius * sin(r_theta));
-		Vector3 position = p_global_position + rand_vec;
-
-		// Get height
-		Array height_data = _get_usable_height(position, slope_range, on_collision, raycast_height);
-		if (height_data.size() != 3) {
+		real_t fixed_scale = CLAMP(real_t(p_params.get("fixed_scale", 100.f)) * .01f, .01f, 100.f); // 1-10k%
+		real_t random_scale = CLAMP(real_t(p_params.get("random_scale", 0.f)) * .01f, 0.f, 10.f); // +/- 1000%
+		Ref<Terrain3DMeshAsset> mesh_asset = _terrain->get_assets()->get_mesh_asset(mesh_id);
+		real_t density = CLAMP(.1f * brush_size * strength * mesh_asset->get_density() /
+						MAX(0.01f, fixed_scale + .5f * random_scale),
+				.001f, 1000.f);
+		// Density based on strength, mesh AABB and input scale determines how many to place, even fractional
+		uint32_t count = _update_density_count(mesh_id, density);
+		if (count <= 0) {
 			continue;
 		}
-		position.y = height_data[0];
-		bool raycast_hit = height_data[1];
+		LOG(EXTREME, "Adding ", count, " instances at ", p_global_position);
 
-		// Orientation
-		Vector3 normal = V3_UP;
-		if (align_to_normal) {
-			// Use either collision normal or terrain normal
-			normal = raycast_hit ? (Vector3)height_data[2] : data->get_normal(position);
-			if (!normal.is_finite()) {
-				normal = V3_UP;
-			} else {
-				normal = normal.normalized();
-				Vector3 z_axis = Vector3(0.f, 0.f, 1.f);
-				Vector3 x_axis = -z_axis.cross(normal);
-				if (x_axis.length_squared() > 0.001f) {
-					t.basis = Basis(x_axis, normal, z_axis).orthonormalized();
+		real_t fixed_spin = CLAMP(real_t(p_params.get("fixed_spin", 0.f)), .0f, 360.f); // degrees
+		real_t random_spin = CLAMP(real_t(p_params.get("random_spin", 360.f)), 0.f, 360.f); // degrees
+		real_t fixed_tilt = CLAMP(real_t(p_params.get("fixed_tilt", 0.f)), -180.f, 180.f); // degrees
+		real_t random_tilt = CLAMP(real_t(p_params.get("random_tilt", 10.f)), 0.f, 180.f); // degrees
+		bool align_to_normal = bool(p_params.get("align_to_normal", false));
+
+		real_t height_offset = CLAMP(real_t(p_params.get("height_offset", 0.f)), -100.0f, 100.f); // meters
+		real_t random_height = CLAMP(real_t(p_params.get("random_height", 0.f)), 0.f, 100.f); // meters
+
+		Color vertex_color = Color(p_params.get("vertex_color", COLOR_WHITE));
+		real_t random_hue = CLAMP(real_t(p_params.get("random_hue", 0.f)) / 360.f, 0.f, 1.f); // degrees -> 0-1
+		real_t random_darken = CLAMP(real_t(p_params.get("random_darken", 0.f)) * .01f, 0.f, 1.f); // 0-100%
+
+		Vector2 slope_range = p_params.get("slope", Vector2(0.f, 90.f)); // 0-90 degrees
+		slope_range.x = CLAMP(slope_range.x, 0.f, 90.f);
+		slope_range.y = CLAMP(slope_range.y, 0.f, 90.f);
+		bool on_collision = bool(p_params.get("on_collision", false));
+		real_t raycast_height = p_params.get("raycast_height", 10.f);
+		Terrain3DData *data = _terrain->get_data();
+
+		TypedArray<Transform3D> xforms;
+		PackedColorArray colors;
+		for (int i = 0; i < count; i++) {
+			Transform3D t;
+
+			// Get random XZ position and height in a circle
+			real_t r_radius = radius * sqrt(UtilityFunctions::randf());
+			real_t r_theta = UtilityFunctions::randf() * Math::TAU;
+			Vector3 rand_vec = Vector3(r_radius * cos(r_theta), 0.f, r_radius * sin(r_theta));
+			Vector3 position = p_global_position + rand_vec;
+
+			// Get height
+			Array height_data = _get_usable_height(position, slope_range, on_collision, raycast_height);
+			if (height_data.size() != 3) {
+				continue;
+			}
+			position.y = height_data[0];
+			bool raycast_hit = height_data[1];
+
+			// Orientation
+			Vector3 normal = V3_UP;
+			if (align_to_normal) {
+				// Use either collision normal or terrain normal
+				normal = raycast_hit ? (Vector3)height_data[2] : data->get_normal(position);
+				if (!normal.is_finite()) {
+					normal = V3_UP;
+				} else {
+					normal = normal.normalized();
+					Vector3 z_axis = Vector3(0.f, 0.f, 1.f);
+					Vector3 x_axis = -z_axis.cross(normal);
+					if (x_axis.length_squared() > 0.001f) {
+						t.basis = Basis(x_axis, normal, z_axis).orthonormalized();
+					}
 				}
 			}
+			real_t spin = (fixed_spin + random_spin * UtilityFunctions::randf()) * Math::PI / 180.f;
+			if (std::abs(spin) > 0.001f) {
+				t.basis = t.basis.rotated(normal, spin);
+			}
+			real_t tilt = (fixed_tilt + random_tilt * (2.f * UtilityFunctions::randf() - 1.f)) * Math::PI / 180.f;
+			if (std::abs(tilt) > 0.001f) {
+				t.basis = t.basis.rotated(t.basis.get_column(0), tilt); // Rotate pitch, X-axis
+			}
+
+			// Scale
+			real_t t_scale = CLAMP(fixed_scale + random_scale * (2.f * UtilityFunctions::randf() - 1.f), 0.01f, 10.f);
+			t = t.scaled(Vector3(t_scale, t_scale, t_scale));
+
+			// Position. mesh_asset height offset added in add_transforms
+			real_t offset = height_offset + random_height * (2.f * UtilityFunctions::randf() - 1.f);
+			position += t.basis.get_column(1) * offset; // Offset along UP axis
+			t = t.translated(position);
+
+			// Color
+			Color col = vertex_color;
+			col.set_v(CLAMP(col.get_v() - random_darken * UtilityFunctions::randf(), 0.f, 1.f));
+			col.set_h(fmod(col.get_h() + random_hue * (2.f * UtilityFunctions::randf() - 1.f), 1.f));
+
+			xforms.push_back(t);
+			colors.push_back(col);
 		}
-		real_t spin = (fixed_spin + random_spin * UtilityFunctions::randf()) * Math_PI / 180.f;
-		if (std::abs(spin) > 0.001f) {
-			t.basis = t.basis.rotated(normal, spin);
+
+		// Append multimesh
+		if (xforms.size() > 0) {
+			add_transforms(mesh_id, xforms, colors);
 		}
-		real_t tilt = (fixed_tilt + random_tilt * (2.f * UtilityFunctions::randf() - 1.f)) * Math_PI / 180.f;
-		if (std::abs(tilt) > 0.001f) {
-			t.basis = t.basis.rotated(t.basis.get_column(0), tilt); // Rotate pitch, X-axis
-		}
-
-		// Scale
-		real_t t_scale = CLAMP(fixed_scale + random_scale * (2.f * UtilityFunctions::randf() - 1.f), 0.01f, 10.f);
-		t = t.scaled(Vector3(t_scale, t_scale, t_scale));
-
-		// Position. mesh_asset height offset added in add_transforms
-		real_t offset = height_offset + random_height * (2.f * UtilityFunctions::randf() - 1.f);
-		position += t.basis.get_column(1) * offset; // Offset along UP axis
-		t = t.translated(position);
-
-		// Color
-		Color col = vertex_color;
-		col.set_v(CLAMP(col.get_v() - random_darken * UtilityFunctions::randf(), 0.f, 1.f));
-		col.set_h(fmod(col.get_h() + random_hue * (2.f * UtilityFunctions::randf() - 1.f), 1.f));
-
-		xforms.push_back(t);
-		colors.push_back(col);
-	}
-
-	// Append multimesh
-	if (xforms.size() > 0) {
-		add_transforms(mesh_id, xforms, colors);
 	}
 }
 
 void Terrain3DInstancer::remove_instances(const Vector3 &p_global_position, const Dictionary &p_params) {
 	IS_DATA_INIT_MESG("Instancer isn't initialized.", VOID);
-
-	int mesh_id = p_params.get("asset_id", 0);
-	int mesh_count = _terrain->get_assets()->get_mesh_count();
-	if (mesh_id < 0 || mesh_id >= mesh_count) {
-		LOG(ERROR, "Mesh ID out of range: ", mesh_id, ", valid: 0 to ", _terrain->get_assets()->get_mesh_count() - 1);
+	if (!p_params.has("mesh_asset_ids")) {
+		LOG(ERROR, "We need an array of mesh_asset_ids");
 		return;
+	}
+	Array mesh_ids = p_params.get("mesh_asset_ids", Array());
+	int mesh_count = _terrain->get_assets()->get_mesh_count();
+
+	bool modifier_shift = p_params.get("modifier_shift", false);
+	if (modifier_shift) {
+		Array all_mesh_ids;
+		for (int i = 0; i < mesh_count; i++) {
+			all_mesh_ids.push_back(i);
+		}
+		mesh_ids = all_mesh_ids;
+	}
+
+	if (mesh_ids.is_empty()) {
+		LOG(ERROR, "We need an array of mesh_asset_ids");
+		return;
+	}
+
+	for (const int mesh_id : mesh_ids) {
+		if (mesh_id < 0 || mesh_id >= mesh_count) {
+			LOG(ERROR, "Mesh ID out of range: ", mesh_id, ", valid: 0 to ", mesh_count - 1);
+			return;
+		}
 	}
 
 	Terrain3DData *data = _terrain->get_data();
 	int region_size = _terrain->get_region_size();
 	real_t vertex_spacing = _terrain->get_vertex_spacing();
-	bool modifier_shift = p_params.get("modifier_shift", false);
 	real_t brush_size = CLAMP(real_t(p_params.get("size", 10.f)), .5f, 4096.f); // Meters
 	real_t half_brush_size = brush_size * 0.5f + 1.f; // 1m margin
 	real_t radius = brush_size * .5f;
@@ -794,17 +822,17 @@ void Terrain3DInstancer::remove_instances(const Vector3 &p_global_position, cons
 		}
 		Vector3 global_local_offset = Vector3(region_loc.x * region_size * vertex_spacing, 0.f, region_loc.y * region_size * vertex_spacing);
 		Vector2 localised_ring_center = Vector2(p_global_position.x - global_local_offset.x, p_global_position.z - global_local_offset.z);
-		// For this mesh id, or all mesh ids
-		for (int m = (modifier_shift ? 0 : mesh_id); m <= (modifier_shift ? mesh_count - 1 : mesh_id); m++) {
+
+		for (const int mesh_id : mesh_ids) {
 			// Ensure this region has this mesh
-			if (!mesh_inst_dict.has(m)) {
+			if (!mesh_inst_dict.has(mesh_id)) {
 				continue;
 			}
-			Dictionary cell_inst_dict = mesh_inst_dict[m];
+			Dictionary cell_inst_dict = mesh_inst_dict[mesh_id];
 			Array cell_locations = cell_inst_dict.keys();
 			// This shouldnt be empty
 			if (cell_locations.size() == 0) {
-				LOG(WARN, "Region at: ", region_loc, " has instance dictionary for mesh id: ", m, " but has no cells.")
+				LOG(WARN, "Region at: ", region_loc, " has instance dictionary for mesh id: ", mesh_id, " but has no cells.")
 				continue;
 			}
 			// Check potential cells rather than searching the entire region, whilst marginally
@@ -829,7 +857,7 @@ void Terrain3DInstancer::remove_instances(const Vector3 &p_global_position, cons
 			if (cell_queue.size() == 0) {
 				continue;
 			}
-			Ref<Terrain3DMeshAsset> mesh_asset = _terrain->get_assets()->get_mesh_asset(m);
+			Ref<Terrain3DMeshAsset> mesh_asset = _terrain->get_assets()->get_mesh_asset(mesh_id);
 			real_t mesh_height_offset = mesh_asset->get_height_offset();
 			for (int c = 0; c < cell_queue.size(); c++) {
 				Vector2i cell = cell_queue[c];
@@ -865,13 +893,13 @@ void Terrain3DInstancer::remove_instances(const Vector3 &p_global_position, cons
 					cell_inst_dict[cell] = triple;
 				} else {
 					cell_inst_dict.erase(cell);
-					_destroy_mmi_by_cell(region_loc, m, cell);
+					_destroy_mmi_by_cell(region_loc, mesh_id, cell);
 				}
 			}
 			if (cell_inst_dict.is_empty()) {
-				mesh_inst_dict.erase(m);
+				mesh_inst_dict.erase(mesh_id);
 			}
-			update_mmis(m, region_loc);
+			update_mmis(mesh_id, region_loc);
 		}
 	}
 }
@@ -977,12 +1005,11 @@ void Terrain3DInstancer::append_region(const Ref<Terrain3DRegion> &p_region, con
 	_backup_region(p_region);
 
 	Dictionary cell_locations = p_region->get_instances()[p_mesh_id];
-	int region_size = p_region->get_region_size();
 
 	for (int i = 0; i < p_xforms.size(); i++) {
 		Transform3D xform = p_xforms[i];
 		Color col = p_colors[i];
-		Vector2i cell = _get_cell(xform.origin, region_size);
+		Vector2i cell = _get_cell(xform.origin);
 
 		// Get current instance arrays or create if none
 		Array triple = cell_locations[cell];
@@ -1144,7 +1171,7 @@ int Terrain3DInstancer::get_closest_mesh_id(const Vector3 &p_global_position) co
 	}
 	int region_size = region->get_region_size();
 	Vector3 region_global_pos = v2iv3(region_loc) * real_t(region_size) * _terrain->get_vertex_spacing();
-	Vector2i cell = _get_cell(p_global_position, region_size);
+	Vector2i cell = _get_cell(p_global_position);
 	Dictionary mesh_inst_dict = region->get_instances();
 	if (mesh_inst_dict.is_empty()) {
 		return -1; // No meshes found
@@ -1305,7 +1332,7 @@ void Terrain3DInstancer::update_mmis(const int p_mesh_id, const Vector2i &p_regi
 	// Set to destroy and rebuild everything
 	if (p_rebuild) {
 		_queued_updates.clear();
-		_queued_updates.emplace(V2I_MAX, -2);
+		_queued_updates.insert(Pair<Vector2i, int>(V2I_MAX, -2));
 		if (!RS->is_connected("frame_pre_draw", callable_mp(this, &Terrain3DInstancer::_process_updates))) {
 			LOG(DEBUG, "Connecting to RS::frame_pre_draw signal");
 			RS->connect("frame_pre_draw", callable_mp(this, &Terrain3DInstancer::_process_updates));
@@ -1313,24 +1340,24 @@ void Terrain3DInstancer::update_mmis(const int p_mesh_id, const Vector2i &p_regi
 		return;
 	}
 	// If already set to destroy, build all, quit
-	if (_queued_updates.find({ V2I_MAX, -2 }) != _queued_updates.end()) {
+	if (_queued_updates.has(Pair<Vector2i, int>(V2I_MAX, -2))) {
 		return;
 	}
 	// If already set to build all, quit
-	if (_queued_updates.find({ V2I_MAX, -1 }) != _queued_updates.end()) {
+	if (_queued_updates.has(Pair<Vector2i, int>(V2I_MAX, -1))) {
 		return;
 	}
 	// If all meshes for region are queued, quit
-	if (_queued_updates.find({ p_region_loc, -1 }) != _queued_updates.end()) {
+	if (_queued_updates.has(Pair<Vector2i, int>(p_region_loc, -1))) {
 		return;
 	}
 	// If all regions for mesh_id are queued, quit
 	int mesh_id = CLAMP(p_mesh_id, -1, Terrain3DAssets::MAX_MESHES - 1);
-	if (_queued_updates.find({ V2I_MAX, mesh_id }) != _queued_updates.end()) {
+	if (_queued_updates.has(Pair<Vector2i, int>(V2I_MAX, mesh_id))) {
 		return;
 	}
 	// Else queue up this region/mesh combo
-	_queued_updates.emplace(p_region_loc, mesh_id);
+	_queued_updates.insert(Pair<Vector2i, int>(p_region_loc, mesh_id));
 	if (!RS->is_connected("frame_pre_draw", callable_mp(this, &Terrain3DInstancer::_process_updates))) {
 		LOG(DEBUG, "Connecting to RS::frame_pre_draw signal");
 		RS->connect("frame_pre_draw", callable_mp(this, &Terrain3DInstancer::_process_updates));

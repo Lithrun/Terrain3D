@@ -59,7 +59,7 @@ void Terrain3DTextureAsset::clear() {
 	_detiling_shift = 0.0f;
 }
 
-void Terrain3DTextureAsset::set_name(const String &p_name) {
+void Terrain3DTextureAsset::set_asset_name(const String &p_name) {
 	if (p_name.length() > 96) {
 		LOG(WARN, "Name too long, truncating to 96 characters");
 	}
@@ -79,7 +79,7 @@ void Terrain3DTextureAsset::set_id(const int p_new_id) {
 
 void Terrain3DTextureAsset::set_highlighted(const bool p_highlighted) {
 	SET_IF_DIFF(_highlighted, p_highlighted);
-	LOG(INFO, "Set mesh ID ", _id, " highlight: ", p_highlighted);
+	LOG(INFO, "Set texture ID ", _id, " highlight: ", _highlighted);
 	real_t random_float = real_t(rand()) / real_t(RAND_MAX);
 	_highlight_color.set_hsv(random_float, 1.f, 1.f, 1.f);
 	LOG(DEBUG, "Emitting setting_changed");
@@ -110,7 +110,7 @@ void Terrain3DTextureAsset::set_albedo_texture(const Ref<Texture2D> &p_texture) 
 			if (img->get_width() != img->get_height()) {
 				LOG(WARN, "Albedo texture '", filename, "' is not square. Mipmaps might have artifacts.");
 			}
-			if (!is_power_of_2(img->get_width()) || !is_power_of_2(img->get_height())) {
+			if (!Math::is_power_of_2(img->get_width()) || !Math::is_power_of_2(img->get_height())) {
 				LOG(WARN, "Albedo texture '", filename, "' size is not power of 2. This is sub-optimal.");
 			}
 			if (IS_EDITOR) {
@@ -141,7 +141,7 @@ void Terrain3DTextureAsset::set_normal_texture(const Ref<Texture2D> &p_texture) 
 			if (img->get_width() != img->get_height()) {
 				LOG(WARN, "Normal texture '", filename, "' is not square. Not recommended. Mipmaps might have artifacts.");
 			}
-			if (!is_power_of_2(img->get_width()) || !is_power_of_2(img->get_height())) {
+			if (!Math::is_power_of_2(img->get_width()) || !Math::is_power_of_2(img->get_height())) {
 				LOG(WARN, "Normal texture '", filename, "' dimensions are not power of 2. This is sub-optimal.");
 			}
 		}
@@ -218,15 +218,16 @@ void Terrain3DTextureAsset::set_detiling_shift(const real_t p_detiling_shift) {
 ///////////////////////////
 
 void Terrain3DTextureAsset::_bind_methods() {
-	ADD_SIGNAL(MethodInfo("id_changed"));
+	ADD_SIGNAL(MethodInfo("id_changed",
+			PropertyInfo(Variant::INT, "type"),
+			PropertyInfo(Variant::INT, "old_id"),
+			PropertyInfo(Variant::INT, "new_id")));
 	ADD_SIGNAL(MethodInfo("file_changed"));
 	ADD_SIGNAL(MethodInfo("setting_changed"));
 
 	ClassDB::bind_method(D_METHOD("clear"), &Terrain3DTextureAsset::clear);
-	// See Terrain3DMeshAsset: set_name/get_name would shadow Resource's, which 4.8 rejects. The
-	// property stays named "name".
-	ClassDB::bind_method(D_METHOD("set_asset_name", "name"), &Terrain3DTextureAsset::set_name);
-	ClassDB::bind_method(D_METHOD("get_asset_name"), &Terrain3DTextureAsset::get_name);
+	ClassDB::bind_method(D_METHOD("set_asset_name", "name"), &Terrain3DTextureAsset::set_asset_name);
+	ClassDB::bind_method(D_METHOD("get_asset_name"), &Terrain3DTextureAsset::get_asset_name);
 	ClassDB::bind_method(D_METHOD("set_id", "id"), &Terrain3DTextureAsset::set_id);
 	ClassDB::bind_method(D_METHOD("get_id"), &Terrain3DTextureAsset::get_id);
 	ClassDB::bind_method(D_METHOD("set_highlighted", "enabled"), &Terrain3DTextureAsset::set_highlighted);

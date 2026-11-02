@@ -54,6 +54,7 @@ void Terrain3DAssets::_swap_ids(const AssetType p_type, const int p_src_id, cons
 	switch (p_type) {
 		case TYPE_TEXTURE:
 			update_texture_list();
+			emit_signal("ids_swapped", AssetType::TYPE_TEXTURE, p_src_id, dst_id);
 			break;
 		case TYPE_MESH:
 			if (_terrain) {
@@ -62,6 +63,7 @@ void Terrain3DAssets::_swap_ids(const AssetType p_type, const int p_src_id, cons
 				LOG(ERROR, "Changing IDs before the terrain is initialized. Meshes on the ground may be wrong.");
 			}
 			update_mesh_list();
+			emit_signal("ids_swapped", AssetType::TYPE_MESH, p_src_id, dst_id);
 			break;
 		default:
 			return;
@@ -106,7 +108,7 @@ void Terrain3DAssets::_set_asset_list(const AssetType p_type, const TypedArray<T
 			for (int j = filled_id + 1; j < array_size; j++) {
 				if (!list[j]) {
 					LOG(ERROR, res->get_class(), " ID ", id, " already exists. Setting '",
-							res->get_name(), "' to ID ", j,
+							res->get_asset_name(), "' to ID ", j,
 							". Textures/Meshes on the ground may be wrong. Review Asset list to ensure each have unique IDs.");
 					res->set_id(j);
 					list[j] = res;
@@ -125,7 +127,7 @@ void Terrain3DAssets::_set_asset_list(const AssetType p_type, const TypedArray<T
 		for (int i = 0; i < list.size(); i++) {
 			Ref<Terrain3DAssetResource> res = list[i];
 			int id = res.is_valid() ? res->get_id() : -1;
-			String name = res.is_valid() ? res->get_name() : "";
+			String name = res.is_valid() ? res->get_asset_name() : "";
 			LOG(DEBUG, "Asset ", i, ": ", name, ", ", res, ", stored ID: ", id);
 		}
 	}
@@ -164,6 +166,7 @@ void Terrain3DAssets::_set_asset(const AssetType p_type, const int p_id, const R
 			Ref<Terrain3DAssetResource> res = list[id];
 			res->clear();
 			res->_id = id;
+			res->initialize();
 		}
 	} else {
 		// Else Insert/Add Asset at end if a high number
@@ -213,7 +216,7 @@ void Terrain3DAssets::_update_texture_files() {
 		if (albedo_tex.is_valid()) {
 			Vector2i tex_size = albedo_tex->get_size();
 			Ref<Image> img = albedo_tex->get_image();
-			Image::Format format = img->get_format();
+			Image::Format format = img->get_format(); // DEPRECATED - In 4.7+ we can query albedo_tex->get_format() and albedo_tex->has_mipmaps()
 			bool mipmaps = img->has_mipmaps();
 
 			// If this is the first valid texture, set expected size and format for the arrays
@@ -241,7 +244,7 @@ void Terrain3DAssets::_update_texture_files() {
 		if (normal_tex.is_valid()) {
 			Vector2i tex_size = normal_tex->get_size();
 			Ref<Image> img = normal_tex->get_image();
-			Image::Format format = img->get_format();
+			Image::Format format = img->get_format(); // DEPRECATED - In 4.7+ we can query normal_tex->get_format() and normal_tex->has_mipmaps()
 			bool mipmaps = img->has_mipmaps();
 
 			// If this is the first valid texture, set expected size and format for the arrays
@@ -260,7 +263,7 @@ void Terrain3DAssets::_update_texture_files() {
 				}
 				if (mipmaps != normal_mipmaps) {
 					_terrain->set_warning(WARN_MISMATCHED_MIPMAPS, true);
-					LOG(ERROR, "Texture ID ", ta->get_id(), " normal mipmap setting (", mipmaps, ") doesn't match first texture (", albedo_mipmaps, "). They must be identical. Read Texture Prep in docs.");
+					LOG(ERROR, "Texture ID ", ta->get_id(), " normal mipmap setting (", mipmaps, ") doesn't match first texture (", normal_mipmaps, "). They must be identical. Read Texture Prep in docs.");
 				}
 			}
 		}
@@ -621,8 +624,8 @@ void Terrain3DAssets::create_mesh_thumbnails(const int p_id, const Vector2i &p_s
 		Vector3 ofs = aabb.get_center();
 		aabb.position -= ofs;
 		Transform3D xform;
-		xform.basis = Basis().rotated(V3_UP, -Math_PI * 0.125f);
-		xform.basis = Basis().rotated(Vector3(1.f, 0.f, 0.f), Math_PI * 0.125f) * xform.basis;
+		xform.basis = Basis().rotated(V3_UP, -Math::PI * 0.125f);
+		xform.basis = Basis().rotated(Vector3(1.f, 0.f, 0.f), Math::PI * 0.125f) * xform.basis;
 		AABB rot_aabb = xform.xform(aabb);
 		real_t m = MAX(rot_aabb.size.x, rot_aabb.size.y) * 0.5f;
 		if (m == 0.f) {
@@ -721,6 +724,11 @@ void Terrain3DAssets::_bind_methods() {
 	BIND_ENUM_CONSTANT(TYPE_MESH);
 	BIND_CONSTANT(MAX_TEXTURES);
 	BIND_CONSTANT(MAX_MESHES);
+
+	ADD_SIGNAL(MethodInfo("ids_swapped",
+			PropertyInfo(Variant::INT, "type"),
+			PropertyInfo(Variant::INT, "old_id"),
+			PropertyInfo(Variant::INT, "new_id")));
 
 	ClassDB::bind_method(D_METHOD("set_texture_asset", "id", "texture"), &Terrain3DAssets::set_texture_asset);
 	ClassDB::bind_method(D_METHOD("get_texture_asset", "id"), &Terrain3DAssets::get_texture_asset);

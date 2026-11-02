@@ -28,9 +28,66 @@ This list are for items that don't already have dedicated pages in the documenta
 
 ## Regions
 
-Outside of regions, there is no collision. Raycasts won't hit anything. Querying terrain heights or other data will result in NANs or INF. Look through the API for specific return values. See [Collision] for more.
+Outside of regions, there is no collision. Raycasts won't hit anything. Querying terrain heights or other data will result in NANs or INF. Look through the API for specific return values. See [Collision](collision.md) for more.
 
 You can determine if a given location is within a region by using `Terrain3DData.has_regionp(global_position)`. It will return -1 if the XZ location is not within a region. Y is ignored.
+
+
+## Editing Data
+
+The extensive API allows modification at runtime. `Terrain3DData` has many functions for setting a vertex at a given global position that ultimately result in a call to `Terrain3DData.set_pixel()`. This is fine for a few edits, but it does bounds and region verification for every call.
+
+For large scale edits, you should get the maps and edit them directly. These are the necessary steps:
+* Retreive the desired region
+* Get the desired Image map type
+* Modify the pixels
+* Recalculate the heights if you changed the heightmap
+* Call `Terrain3DData.update_maps()` to push the changes to the GPU
+
+Here's a complete example that adds 10m to all vertices in existing regions between global positions (0, 0, 0) and (2048, 0, 2048). It includes an optional memoized cache of regions so that we can access global positions randomly without retrieving the region for every pixel, even though it is done sequentially here in the x and z for loops.
+
+You don't need the memoization cache, but it can be useful when editing the terrain with random positions such as when following a path like with a road or river generator.
+
+
+```
+var terrain: Terrain3D = get_node("Terrain3D")
+var map_cache: Dictionary # region_loc -> Image
+var modified_regions: Dictionary # region_loc -> Terrain3DRegion
+
+
+# Memoized cache of region maps
+func get_map(p_global_position: Vector3) -> Image:
+	var region_loc: Vector2i = terrain.data.get_region_location(p_global_position)
+	if not map_cache.has(region_loc):
+		var region: Terrain3DRegion = terrain.data.get_region(region_loc)
+		if region:
+			map_cache[region_loc] = region.get_map(Terrain3DRegion.TYPE_HEIGHT)
+			modified_regions[region_loc] = region
+	return map_cache.get(region_loc)
+
+
+func process_data() -> void:
+	var step: float = terrain.vertex_spacing
+	for x in range(0.0, 2048.0, step):
+		for z in range(0.0, 2048.0, step):
+			var pos := Vector3(x, 0, z)
+			var map: Image = get_map(pos)
+			if map:
+				var img_pos: Vector2i = terrain.data.world_to_pixelv(pos)
+				var current_height: float = map.get_pixelv(img_pos).r
+				map.set_pixelv(img_pos, Color(current_height + 10.0, 0.0, 0.0, 1.0))
+
+	# Update only modified regions
+	for region in modified_regions.values():
+		region.calc_height_range()
+		region.set_modified(true)
+		region.set_edited(true)
+
+	terrain.data.update_maps(Terrain3DRegion.TYPE_HEIGHT, false)
+
+	for region in modified_regions.values():
+		region.set_edited(false)
+```
 
 
 ## Terrain3DObjects
@@ -46,20 +103,6 @@ You can then adjust the vertical position of the sphere so it is half embedded i
 To use it:
 * Create a new node of type Terrain3DObjects
 * Add your MeshInstance3D objects as children of this node
-
-
-## Performance
-* The Terrain3DMaterial shader has some advanced features that look nice but consume some performance. You can get better performance by disabling them:
-    * Set `WorldBackground` to `Flat` or `None`
-	* Disable `Auto Shader`
-	* Disable `Dual Scaling`
-* `WorldBackground` as `Noise` exposes additional shader settings, such as octaves and LOD. You can adjust these settings for performance. However this world generating noise is expensive. Consider not using it at all in a commercial game, and instead obscure your background with meshes, or use an HDR skybox with mountains built in.
-* Reduce the size of the mesh and levels of detail by reducing `Terrain Mesh/Size` or `Terrain Mesh/Lods` in the `Terrain3D` node.
-* Reduce `Terrain Mesh/Tessellation Level` or set to 0 (default) to completely disable texture displacement.
-* Increase `Terrain Mesh/Vertex Spacing`, which increases the lateral scale and gives you a more low-poly terrain. Preferrably do this before you sculpt, but if done after, you can export the heightmap and manipulate it in Photoshop to rescale it.
-* Don't use `Renderer/Cull Margin`. It should only be needed if using the noise background. Otherwise the AABB should be correctly calculated via editing, so there is no need to expand the cull margin. Keeping it enabled can cost more processing time.
-* Experiment with `Renderer/free_editor_textures`, which is enabled by default. It saves VRAM by removing the initial textures used to generate the texture arrays.
-* For cases where performance is paramount, an example `lightweight` shader is provided in `extras/shaders`. This shader is designed to do the minimum possible amount of texture lookups, while still providing basic texturing, including height blending. Normals are also fully calculated in `vertex()`. This shader removes advanced features like projection, detiling, and paintable rotation and scale for significant performance gains on low-end hardware, mobile, and VR applications. Or you can use the `minimum` shader and craft your own texturing and coloring without any extra features.
 
 
 ## Shaders

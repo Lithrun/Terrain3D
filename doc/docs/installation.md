@@ -65,6 +65,7 @@ If upgrading from a very old version, you may need to go through multiple steps 
 
 | Starting Version | Can Upgrade w/ Data Conversion |
 |------------------|-------------------|
+| 1.0.2 | 1.1.0 |
 | 1.0.1 | 1.1.0 |
 | 1.0.0 | 1.0.1 - 1.1.0 |
 | 0.9.3 | 1.0.0 - 1.1.0 |
@@ -78,3 +79,5 @@ If upgrading from a very old version, you may need to go through multiple steps 
 | 0.8.0 | 0.8.4 - 0.9.0 |
 
 * 0.9.3 - Data storage changed from a single .res file to one file per region saved in a directory.
+
+Also see [Data Format Changelog](data_format.md).
