@@ -223,10 +223,13 @@ void vertex() {
 
 	vec3 displacement = vec3(0.);
 	// Show holes to all cameras except mouse camera (on exactly 1 layer)
-	if ( !(CAMERA_VISIBLE_LAYERS == _mouse_layer) && (hole
+	bool hidden = !(CAMERA_VISIBLE_LAYERS == _mouse_layer) && (hole
 //INSERT: NONE_CHECK
-		)){
+		);
+	if (hidden) {
+#if CURRENT_RENDERER == RENDERER_FORWARD_PLUS
 		v_vertex.x = 0. / 0.;
+#endif
 	} else {
 		// Set final vertex height.
 		float h;
@@ -252,6 +255,10 @@ void vertex() {
 	NORMAL = normalize((MODELVIEW_MATRIX * vec4(NORMAL, 0.0)).xyz);
 	BINORMAL = normalize((MODELVIEW_MATRIX * vec4(BINORMAL, 0.0)).xyz);
 	TANGENT = normalize((MODELVIEW_MATRIX * vec4(TANGENT, 0.0)).xyz);
+#if CURRENT_RENDERER != RENDERER_FORWARD_PLUS
+	// A NaN vertex is undefined and mobile GPUs draw it; a zero clip position gives its triangles zero area instead.
+	POSITION = hidden ? vec4(0.0) : PROJECTION_MATRIX * vec4(VERTEX, 1.0);
+#endif
 }
 )"
 
